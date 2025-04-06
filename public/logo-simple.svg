@@ -1,0 +1,27 @@
+<svg width="150" height="150" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="150" height="150" rx="15" fill="#000000" />
+  
+  <!-- Circle border -->
+  <circle cx="75" cy="75" r="65" fill="none" stroke="#ffffff" stroke-width="2" />
+  
+  <!-- Main vertical line of 'F' -->
+  <rect x="50" y="35" width="12" height="80" fill="#ffffff" />
+  
+  <!-- Top horizontal of 'F' -->
+  <rect x="50" y="35" width="50" height="12" fill="#ffffff" />
+  
+  <!-- Middle horizontal of 'F' -->
+  <rect x="50" y="65" width="35" height="12" fill="#ffffff" />
+  
+  <!-- Subtle accent line -->
+  <line x1="110" y1="35" x2="110" y2="115" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2" />
+  
+  <!-- Particles/dots -->
+  <circle cx="125" cy="75" r="4" fill="#ffffff" />
+  <circle cx="50" cy="128" r="4" fill="#ffffff" />
+  <circle cx="50" cy="22" r="4" fill="#ffffff" />
+  
+  <!-- Title text -->
+  <text x="75" y="140" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#ffffff" text-anchor="middle">FinBot</text>
+</svg> 

@@ -30,10 +30,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
         transition={{ duration: 0.4 }}
         className={`p-4 rounded-lg max-w-[80%] shadow-lg ${
           isUser
-            ? "bg-white text-black border border-gray-300"
+            ? "bg-gray-100 text-gray-800 border border-gray-200"
             : isSystem
-              ? "bg-gray-900 border border-amber-700 text-amber-300"
-              : "bg-gray-900 border border-gray-700 text-white"
+              ? "bg-amber-50 border border-amber-200 text-amber-800"
+              : "bg-black border border-gray-700 text-white"
         }`}
         whileHover={{ 
           scale: 1.01, 
@@ -43,7 +43,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <div className="flex items-center mb-2">
           {!isUser && !isSystem && (
             <motion.div 
-              className="flex items-center justify-center w-6 h-6 mr-2 bg-black rounded-full border border-gray-700 shadow-sm"
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-gray-800 rounded-full border border-gray-700 shadow-sm"
               whileHover={{ rotate: 15 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
@@ -52,16 +52,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
           )}
           {isUser && (
             <motion.div 
-              className="flex items-center justify-center w-6 h-6 mr-2 bg-black rounded-full shadow-sm border border-gray-300"
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-white rounded-full shadow-sm border border-gray-300"
               whileHover={{ rotate: 15 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
-              <User className="text-white w-3 h-3" />
+              <User className="text-gray-800 w-3 h-3" />
             </motion.div>
           )}
           {isSystem && (
             <motion.div 
-              className="flex items-center justify-center w-6 h-6 mr-2 bg-amber-700 rounded-full shadow-sm"
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-amber-100 rounded-full shadow-sm border border-amber-300"
               whileHover={{ rotate: 15 }}
               animate={{ 
                 boxShadow: ["0 0 0px rgba(217, 119, 6, 0)", "0 0 8px rgba(217, 119, 6, 0.5)", "0 0 0px rgba(217, 119, 6, 0)"]
@@ -72,11 +72,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 rotate: { type: "spring", stiffness: 400, damping: 10 }
               }}
             >
-              <BellRing className="text-white w-3 h-3" />
+              <BellRing className="text-amber-800 w-3 h-3" />
             </motion.div>
           )}
           <motion.span 
-            className={`font-medium text-sm ${isUser ? "text-black" : isSystem ? "text-amber-300" : "text-white"}`}
+            className={`font-medium text-sm ${isUser ? "text-gray-800" : isSystem ? "text-amber-800" : "text-white"}`}
             initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: 0.1 }}
@@ -85,7 +85,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </motion.span>
           {message.language && message.language !== "English" && (
             <motion.span 
-              className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-300"
+              className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${isUser ? "bg-gray-200 text-gray-700" : "bg-gray-800 text-gray-300"}`}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, delay: 0.2 }}
@@ -100,7 +100,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             isUser 
               ? "text-gray-600" 
               : isSystem 
-                ? "text-amber-500" 
+                ? "text-amber-700" 
                 : "text-gray-400"
           }`}
         >

@@ -1,7 +1,7 @@
 # FinBot - Banking Assistant
 
 <div align="center">
-  <img src="public/finbot-logo.svg" alt="FinBot Logo" width="150" height="150"/>
+  <img src="public/logo-simple.svg" alt="FinBot Logo" width="150" height="150"/>
   <h3>Modern Banking Assistant with AI-Powered Capabilities</h3>
 </div>
 

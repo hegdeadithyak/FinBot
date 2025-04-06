@@ -177,7 +177,7 @@ export function Chat() {
             <Button
               size="sm"
               variant="outline"
-              className="flex items-center gap-1 border-gray-700 text-white hover:bg-gray-800 bg-black"
+              className="flex items-center gap-1 border-gray-300 text-gray-800 hover:bg-gray-100 bg-white"
               onClick={() => setSelectedLanguage(selectedLanguage === "English" ? "Spanish" : "English")}
             >
               <Globe className="w-3 h-3" />
@@ -196,8 +196,8 @@ export function Chat() {
               variant={voiceState !== "idle" ? "default" : "outline"}
               className={`flex items-center gap-1 ${
                 voiceState !== "idle" 
-                  ? "bg-white text-black hover:bg-gray-200" 
-                  : "border-gray-700 text-white hover:bg-gray-800 bg-black"
+                  ? "bg-black text-white hover:bg-gray-800" 
+                  : "border-gray-300 text-gray-800 hover:bg-gray-100 bg-white"
               }`}
               onClick={toggleVoiceInput}
             >
@@ -213,7 +213,7 @@ export function Chat() {
         
         {showSupportTicket && (
           <motion.div 
-            className="flex items-center text-amber-500 text-xs"
+            className="flex items-center text-amber-600 text-xs"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3 }}
@@ -240,7 +240,7 @@ export function Chat() {
               {/* If message is escalated, show the escalation info */}
               {message.isEscalated && (
                 <motion.div 
-                  className="ml-10 mt-2 p-2 bg-amber-900 border border-amber-700 rounded-md text-sm text-amber-300 flex items-center"
+                  className="ml-10 mt-2 p-2 bg-amber-100 border border-amber-300 rounded-md text-sm text-amber-800 flex items-center"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   transition={{ duration: 0.3 }}
@@ -252,86 +252,50 @@ export function Chat() {
             </motion.div>
           ))}
         </AnimatePresence>
-
-        <AnimatePresence>
-          {isLoading && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="flex items-center p-4 rounded-lg bg-gray-900 border border-gray-700 max-w-[80%] shadow-sm"
-            >
-              <div className="flex items-center">
-                <div className="w-6 h-6 mr-2 flex items-center justify-center bg-black rounded-full border border-gray-700">
-                  <Bot className="w-3 h-3 text-white" />
-                </div>
-                <p className="text-sm text-gray-300 mr-2">
-                  {selectedLanguage === "English" ? "FinBot is typing" : "FinBot está escribiendo"}
-                </p>
-                <TypingIndicator />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+        
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="ml-10"
+          >
+            <TypingIndicator />
+          </motion.div>
+        )}
+        
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Fixed position for Quick Actions */}
-      <div className="mb-4 mt-auto">
-        <QuickActions onSelectAction={(action) => setInput(action)} />
-      </div>
-
-      <motion.form
-        onSubmit={handleSendMessage}
-        className="relative"
-        initial={{ opacity: 0, y: 20 }}
+      
+      <motion.div
+        className="relative mt-auto"
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ delay: 0.3 }}
       >
-        <div className="flex items-center border border-gray-700 rounded-lg bg-gray-900 shadow-md transition-all hover:shadow-lg focus-within:shadow-lg focus-within:border-gray-500">
+        <QuickActions onQuickActionClick={(text) => setInput(text)} />
+        
+        <form onSubmit={handleSendMessage} className="flex items-center space-x-2 pt-2">
           <input
             type="text"
+            placeholder="Type a message..."
+            className="flex-1 p-2 rounded-md border border-gray-300 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-black"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={selectedLanguage === "English" ? "Type your banking question..." : "Escribe tu pregunta bancaria..."}
-            className="flex-1 p-3 bg-transparent focus:outline-none text-white"
             disabled={isLoading || voiceState !== "idle"}
           />
           
-          <div className="flex items-center">
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="mr-1 text-white hover:bg-gray-800"
-                onClick={toggleVoiceInput}
-                disabled={isLoading}
-              >
-                {voiceState === "idle" ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-              </Button>
-            </motion.div>
-            
-            <motion.div 
-              whileHover={{ scale: 1.05 }} 
-              whileTap={{ scale: 0.95 }}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: 0.3 }}
-            >
-              <Button
-                type="submit"
-                size="icon"
-                className="mr-2 bg-white hover:bg-gray-200 text-black transition-colors"
-                disabled={!input.trim() || isLoading || voiceState !== "idle"}
-              >
-                <SendIcon className="w-4 h-4" />
-              </Button>
-            </motion.div>
-          </div>
-        </div>
-      </motion.form>
+          <Button
+            type="submit"
+            variant="default"
+            size="icon"
+            disabled={!input.trim() || isLoading || voiceState !== "idle"}
+            className="rounded-md h-10 w-10 p-0 bg-black hover:bg-gray-800"
+          >
+            <SendIcon className="h-4 w-4" />
+          </Button>
+        </form>
+      </motion.div>
     </motion.div>
   )
 }

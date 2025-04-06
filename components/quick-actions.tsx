@@ -5,10 +5,10 @@ import { motion } from "framer-motion"
 import { CreditCard, Send, Clock, Wallet, Building, HelpCircle } from "lucide-react"
 
 interface QuickActionsProps {
-  onSelectAction: (action: string) => void
+  onQuickActionClick: (action: string) => void
 }
 
-export function QuickActions({ onSelectAction }: QuickActionsProps) {
+export function QuickActions({ onQuickActionClick }: QuickActionsProps) {
   const bankingActions = [
     {
       text: "Check my balance",
@@ -54,16 +54,16 @@ export function QuickActions({ onSelectAction }: QuickActionsProps) {
 
   return (
     <motion.div
-      className="mb-4 bg-gray-900 p-3 rounded-lg border border-gray-700 shadow-md"
+      className="mb-4 bg-white p-3 rounded-lg border border-gray-200 shadow-md"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      whileHover={{ boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)" }}
+      whileHover={{ boxShadow: "0 8px 30px rgba(0, 0, 0, 0.1)" }}
     >
       <motion.p 
-        className="text-sm text-white mb-3 font-medium"
+        className="text-sm text-gray-800 mb-3 font-medium"
         animate={{ 
-          textShadow: ["0 0 0px rgba(255,255,255,0)", "0 0 5px rgba(255,255,255,0.3)", "0 0 0px rgba(255,255,255,0)"] 
+          textShadow: ["0 0 0px rgba(0,0,0,0)", "0 0 5px rgba(0,0,0,0.2)", "0 0 0px rgba(0,0,0,0)"] 
         }}
         transition={{ duration: 3, repeat: Infinity, repeatType: "reverse" }}
       >
@@ -86,8 +86,8 @@ export function QuickActions({ onSelectAction }: QuickActionsProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onSelectAction(action.text)}
-              className="text-xs border-gray-700 hover:bg-white hover:text-black transition-all flex items-center bg-black text-white"
+              onClick={() => onQuickActionClick(action.text)}
+              className="text-xs border-gray-300 hover:bg-black hover:text-white transition-all flex items-center bg-white text-gray-800"
             >
               {action.icon}
               {action.text}
