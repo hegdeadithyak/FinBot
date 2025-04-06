@@ -3,7 +3,7 @@
 import { Chat } from "@/components/chat"
 import { Logo } from "@/components/logo"
 import { motion } from "framer-motion"
-import { MicrophoneIcon, Globe, TicketIcon, BrainCircuit, Memory } from "lucide-react"
+import { Mic, Globe, TicketIcon, BrainCircuit, Database } from "lucide-react"
 
 export default function Home() {
   return (
@@ -28,7 +28,7 @@ export default function Home() {
           
           <div className="hidden md:flex items-center space-x-4">
             <div className="flex items-center text-sm text-gray-600">
-              <MicrophoneIcon className="w-4 h-4 mr-1 text-indigo-600" />
+              <Mic className="w-4 h-4 mr-1 text-indigo-600" />
               <span>Voice Enabled</span>
             </div>
             <div className="flex items-center text-sm text-gray-600">
@@ -77,10 +77,10 @@ export default function Home() {
               
               <div className="flex items-start">
                 <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <Memory className="w-5 h-5 text-indigo-600" />
+                  <Database className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Contextual Memory</h4>
+                  <h4 className="text-sm font-medium text-gray-800">Contextual Database</h4>
                   <p className="text-xs text-gray-600">Remembers your conversation for personalized help</p>
                 </div>
               </div>
@@ -107,7 +107,7 @@ export default function Home() {
               
               <div className="flex items-start">
                 <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <MicrophoneIcon className="w-5 h-5 text-indigo-600" />
+                  <Mic className="w-5 h-5 text-indigo-600" />
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-gray-800">Voice Interaction</h4>

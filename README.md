@@ -14,7 +14,7 @@ FinBot is an intelligent banking assistant designed to provide users with seamle
 ### 🤖 User Query Resolution
 Accurately answers customer inquiries related to banking services using advanced natural language processing.
 
-### 🧠 Contextual Memory Layer
+### 🧠 Contextual Database Layer
 Retains conversation context for more personalized and coherent responses throughout the user interaction.
 
 ### 🌐 Multilingual Support
@@ -65,7 +65,7 @@ Visit `http://localhost:3000` to see the application in action.
 ## Usage
 
 - Type your banking questions in the chat interface
-- Use voice commands by clicking the microphone button
+- Use voice commands by clicking the mic button
 - Switch languages with the language selector
 - Try keywords like "fraud" or "unauthorized transaction" to see the escalation system in action
 - Explore quick actions for common banking tasks

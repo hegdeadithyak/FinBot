@@ -130,8 +130,8 @@ export function Chat() {
           : "Me complacería ayudarte a realizar una transferencia. Por favor, especifica el monto y los datos de la cuenta del destinatario.";
       } else if (isFollowUpQuestion) {
         botResponse = selectedLanguage === "English" 
-          ? "Based on our conversation, I understand you're asking a follow-up question. I'm using my contextual memory to provide a more relevant response."
-          : "Basado en nuestra conversación, entiendo que estás haciendo una pregunta de seguimiento. Estoy utilizando mi memoria contextual para proporcionar una respuesta más relevante.";
+          ? "Based on our conversation, I understand you're asking a follow-up question. I'm using my contextual database to provide a more relevant response."
+          : "Basado en nuestra conversación, entiendo que estás haciendo una pregunta de seguimiento. Estoy utilizando mi base de datos contextual para proporcionar una respuesta más relevante.";
       } else {
         botResponse = selectedLanguage === "English" 
           ? "I understand you have a question about banking. How else can I assist you with your banking needs today?"
