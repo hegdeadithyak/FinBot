@@ -42,6 +42,7 @@ export function QuickActions({ onSelectAction }: QuickActionsProps) {
       opacity: 1,
       transition: {
         staggerChildren: 0.1,
+        delayChildren: 0.2
       },
     },
   }
@@ -53,20 +54,40 @@ export function QuickActions({ onSelectAction }: QuickActionsProps) {
 
   return (
     <motion.div
-      className="mb-4"
+      className="mb-4 bg-gray-900 p-3 rounded-lg border border-gray-700 shadow-md"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
+      transition={{ duration: 0.5 }}
+      whileHover={{ boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)" }}
     >
-      <p className="text-sm text-gray-500 mb-2">Quick Actions:</p>
-      <motion.div className="flex flex-wrap gap-2" variants={container} initial="hidden" animate="show">
-        {bankingActions.map((action) => (
-          <motion.div key={action.text} variants={item}>
+      <motion.p 
+        className="text-sm text-white mb-3 font-medium"
+        animate={{ 
+          textShadow: ["0 0 0px rgba(255,255,255,0)", "0 0 5px rgba(255,255,255,0.3)", "0 0 0px rgba(255,255,255,0)"] 
+        }}
+        transition={{ duration: 3, repeat: Infinity, repeatType: "reverse" }}
+      >
+        Quick Actions:
+      </motion.p>
+      <motion.div 
+        className="flex flex-wrap gap-2" 
+        variants={container} 
+        initial="hidden" 
+        animate="show"
+      >
+        {bankingActions.map((action, index) => (
+          <motion.div 
+            key={action.text} 
+            variants={item}
+            custom={index}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Button
               variant="outline"
               size="sm"
               onClick={() => onSelectAction(action.text)}
-              className="text-xs border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center"
+              className="text-xs border-gray-700 hover:bg-white hover:text-black transition-all flex items-center bg-black text-white"
             >
               {action.icon}
               {action.text}

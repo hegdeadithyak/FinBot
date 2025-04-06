@@ -7,12 +7,12 @@ import { Mic, Globe, TicketIcon, BrainCircuit, Database } from "lucide-react"
 
 export default function Home() {
   return (
-    <main className="flex flex-col min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <main className="flex flex-col min-h-screen bg-black text-white">
       <motion.header
-        className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm"
-        initial={{ y: -20, opacity: 0 }}
+        className="sticky top-0 z-10 bg-black border-b border-gray-800 shadow-md"
+        initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
       >
         <div className="container flex items-center justify-between h-16 px-4 mx-auto">
           <motion.div
@@ -20,21 +20,40 @@ export default function Home() {
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 400, damping: 10 }}
           >
-            <Logo />
-            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-transparent bg-clip-text">
+            <motion.div
+              animate={{ rotateY: [0, 360] }}
+              transition={{ duration: 3, repeat: Infinity, repeatDelay: 5 }}
+            >
+              <Logo />
+            </motion.div>
+            <h1 className="text-xl font-bold text-white">
               FinBot
             </h1>
           </motion.div>
           
           <div className="hidden md:flex items-center space-x-4">
-            <div className="flex items-center text-sm text-gray-600">
-              <Mic className="w-4 h-4 mr-1 text-indigo-600" />
+            <motion.div
+              className="flex items-center text-sm text-gray-300"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+            >
+              <Mic className="w-4 h-4 mr-1 text-white animate-pulse-slow" />
               <span>Voice Enabled</span>
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <Globe className="w-4 h-4 mr-1 text-indigo-600" />
+            </motion.div>
+            <motion.div
+              className="flex items-center text-sm text-gray-300"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+            >
+              <Globe className="w-4 h-4 mr-1 text-white animate-pulse-slow" />
               <span>Multilingual</span>
-            </div>
+            </motion.div>
           </div>
         </div>
       </motion.header>
@@ -42,88 +61,140 @@ export default function Home() {
       <div className="container mx-auto px-4 py-8 md:py-12 flex flex-col lg:flex-row gap-8">
         <motion.div
           className="lg:w-3/4 flex flex-col"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-xl mb-4">
-              <h2 className="text-lg font-semibold mb-2">Your Banking Assistant</h2>
-              <p className="text-sm opacity-90">Ask questions about accounts, transfers, loans, or any banking service. I'm here to help!</p>
-            </div>
+          <div className="bg-gray-900 rounded-2xl shadow-2xl p-4 mb-6 border border-gray-800 overflow-hidden">
+            <motion.div 
+              className="bg-black p-4 rounded-xl mb-4 border border-gray-800"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <motion.h2 
+                className="text-lg font-semibold mb-2 text-white"
+                animate={{ 
+                  textShadow: ["0 0 0px rgba(255,255,255,0)", "0 0 10px rgba(255,255,255,0.5)", "0 0 0px rgba(255,255,255,0)"] 
+                }}
+                transition={{ duration: 3, repeat: Infinity }}
+              >
+                Your Banking Assistant
+              </motion.h2>
+              <p className="text-sm opacity-90 text-gray-400">Ask questions about accounts, transfers, loans, or any banking service. I'm here to help!</p>
+            </motion.div>
             <Chat />
           </div>
         </motion.div>
         
         <motion.div 
           className="lg:w-1/4"
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
+          transition={{ duration: 0.8, delay: 0.6 }}
         >
-          <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
-            <h3 className="font-semibold text-gray-800 mb-4">Features</h3>
+          <div className="bg-gray-900 rounded-2xl shadow-2xl p-6 mb-6 border border-gray-800">
+            <h3 className="font-semibold text-white mb-6 flex items-center">
+              <motion.span
+                animate={{ 
+                  textShadow: ["0 0 0px rgba(255,255,255,0)", "0 0 8px rgba(255,255,255,0.5)", "0 0 0px rgba(255,255,255,0)"]
+                }}
+                transition={{ duration: 2.5, repeat: Infinity }}
+              >
+                Advanced Features
+              </motion.span>
+            </h3>
             
-            <div className="space-y-4">
-              <div className="flex items-start">
-                <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <BrainCircuit className="w-5 h-5 text-indigo-600" />
+            <div className="space-y-5">
+              <motion.div 
+                className="flex items-start"
+                whileHover={{ x: 5 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+              >
+                <div className="bg-black p-2 rounded-lg mr-3 border border-gray-800">
+                  <BrainCircuit className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Smart Responses</h4>
-                  <p className="text-xs text-gray-600">AI-powered answers to all your banking queries</p>
+                  <h4 className="text-sm font-medium text-white">Smart Responses</h4>
+                  <p className="text-xs text-gray-400">AI-powered answers to all your banking queries</p>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="flex items-start">
-                <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <Database className="w-5 h-5 text-indigo-600" />
+              <motion.div 
+                className="flex items-start"
+                whileHover={{ x: 5 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.8 }}
+              >
+                <div className="bg-black p-2 rounded-lg mr-3 border border-gray-800">
+                  <Database className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Contextual Database</h4>
-                  <p className="text-xs text-gray-600">Remembers your conversation for personalized help</p>
+                  <h4 className="text-sm font-medium text-white">Contextual Database</h4>
+                  <p className="text-xs text-gray-400">Remembers your conversation for personalized help</p>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="flex items-start">
-                <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <Globe className="w-5 h-5 text-indigo-600" />
+              <motion.div 
+                className="flex items-start"
+                whileHover={{ x: 5 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.9 }}
+              >
+                <div className="bg-black p-2 rounded-lg mr-3 border border-gray-800">
+                  <Globe className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Multilingual</h4>
-                  <p className="text-xs text-gray-600">Get assistance in multiple languages</p>
+                  <h4 className="text-sm font-medium text-white">Multilingual</h4>
+                  <p className="text-xs text-gray-400">Get assistance in multiple languages</p>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="flex items-start">
-                <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <TicketIcon className="w-5 h-5 text-indigo-600" />
+              <motion.div 
+                className="flex items-start"
+                whileHover={{ x: 5 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1.0 }}
+              >
+                <div className="bg-black p-2 rounded-lg mr-3 border border-gray-800">
+                  <TicketIcon className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Issue Escalation</h4>
-                  <p className="text-xs text-gray-600">Automatic support tickets for complex issues</p>
+                  <h4 className="text-sm font-medium text-white">Issue Escalation</h4>
+                  <p className="text-xs text-gray-400">Automatic support tickets for complex issues</p>
                 </div>
-              </div>
+              </motion.div>
               
-              <div className="flex items-start">
-                <div className="bg-indigo-100 p-2 rounded-lg mr-3">
-                  <Mic className="w-5 h-5 text-indigo-600" />
+              <motion.div 
+                className="flex items-start"
+                whileHover={{ x: 5 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1.1 }}
+              >
+                <div className="bg-black p-2 rounded-lg mr-3 border border-gray-800">
+                  <Mic className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800">Voice Interaction</h4>
-                  <p className="text-xs text-gray-600">Speak naturally with voice input & output</p>
+                  <h4 className="text-sm font-medium text-white">Voice Interaction</h4>
+                  <p className="text-xs text-gray-400">Speak naturally with voice input & output</p>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </motion.div>
       </div>
 
       <motion.footer
-        className="py-4 text-center text-sm text-gray-500 border-t border-gray-200 bg-white mt-auto"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        className="py-4 text-center text-sm text-gray-500 border-t border-gray-800 bg-black mt-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8, delay: 1.2 }}
       >
         <div className="container mx-auto">
           <p>© {new Date().getFullYear()} FinBot - Banking Assistant</p>

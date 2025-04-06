@@ -40,6 +40,7 @@ export function Chat() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle")
   const [showSupportTicket, setShowSupportTicket] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -161,17 +162,22 @@ export function Chat() {
   return (
     <motion.div
       className="flex flex-col h-full"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+      ref={chatContainerRef}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex space-x-2">
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <motion.div 
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }}
+            className="animate-fade-in"
+          >
             <Button
               size="sm"
               variant="outline"
-              className="flex items-center gap-1 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+              className="flex items-center gap-1 border-gray-700 text-white hover:bg-gray-800 bg-black"
               onClick={() => setSelectedLanguage(selectedLanguage === "English" ? "Spanish" : "English")}
             >
               <Globe className="w-3 h-3" />
@@ -179,14 +185,19 @@ export function Chat() {
             </Button>
           </motion.div>
           
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <motion.div 
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }}
+            className="animate-fade-in"
+            style={{ animationDelay: "100ms" }}
+          >
             <Button
               size="sm"
               variant={voiceState !== "idle" ? "default" : "outline"}
               className={`flex items-center gap-1 ${
                 voiceState !== "idle" 
-                  ? "bg-indigo-600 hover:bg-indigo-700" 
-                  : "border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                  ? "bg-white text-black hover:bg-gray-200" 
+                  : "border-gray-700 text-white hover:bg-gray-800 bg-black"
               }`}
               onClick={toggleVoiceInput}
             >
@@ -201,29 +212,35 @@ export function Chat() {
         </div>
         
         {showSupportTicket && (
-          <div className="flex items-center text-amber-600 text-xs">
+          <motion.div 
+            className="flex items-center text-amber-500 text-xs"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             <TicketIcon className="w-3 h-3 mr-1" />
             <span>Support ticket created</span>
-          </div>
+          </motion.div>
         )}
       </div>
       
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+      <div className="flex-1 overflow-y-auto mb-4 space-y-4 custom-scrollbar" style={{ maxHeight: "calc(100vh - 250px)" }}>
         <AnimatePresence>
           {messages.map((message) => (
             <motion.div
               key={message.id}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.4 }}
+              className="animate-slide-in"
             >
               <ChatMessage message={message} />
               
               {/* If message is escalated, show the escalation info */}
               {message.isEscalated && (
                 <motion.div 
-                  className="ml-10 mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-700 flex items-center"
+                  className="ml-10 mt-2 p-2 bg-amber-900 border border-amber-700 rounded-md text-sm text-amber-300 flex items-center"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   transition={{ duration: 0.3 }}
@@ -242,13 +259,13 @@ export function Chat() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="flex items-center p-4 rounded-lg bg-white border border-gray-200 max-w-[80%] shadow-sm"
+              className="flex items-center p-4 rounded-lg bg-gray-900 border border-gray-700 max-w-[80%] shadow-sm"
             >
               <div className="flex items-center">
-                <div className="w-6 h-6 mr-2 flex items-center justify-center bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full">
+                <div className="w-6 h-6 mr-2 flex items-center justify-center bg-black rounded-full border border-gray-700">
                   <Bot className="w-3 h-3 text-white" />
                 </div>
-                <p className="text-sm text-gray-600 mr-2">
+                <p className="text-sm text-gray-300 mr-2">
                   {selectedLanguage === "English" ? "FinBot is typing" : "FinBot está escribiendo"}
                 </p>
                 <TypingIndicator />
@@ -260,22 +277,25 @@ export function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <QuickActions onSelectAction={(action) => setInput(action)} />
+      {/* Fixed position for Quick Actions */}
+      <div className="mb-4 mt-auto">
+        <QuickActions onSelectAction={(action) => setInput(action)} />
+      </div>
 
       <motion.form
         onSubmit={handleSendMessage}
         className="relative"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
       >
-        <div className="flex items-center border border-gray-300 rounded-lg bg-white shadow-sm transition-all hover:shadow-md focus-within:shadow-md focus-within:border-indigo-400">
+        <div className="flex items-center border border-gray-700 rounded-lg bg-gray-900 shadow-md transition-all hover:shadow-lg focus-within:shadow-lg focus-within:border-gray-500">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={selectedLanguage === "English" ? "Type your banking question..." : "Escribe tu pregunta bancaria..."}
-            className="flex-1 p-3 bg-transparent focus:outline-none"
+            className="flex-1 p-3 bg-transparent focus:outline-none text-white"
             disabled={isLoading || voiceState !== "idle"}
           />
           
@@ -285,7 +305,7 @@ export function Chat() {
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="mr-1 text-indigo-600 hover:bg-indigo-50"
+                className="mr-1 text-white hover:bg-gray-800"
                 onClick={toggleVoiceInput}
                 disabled={isLoading}
               >
@@ -293,11 +313,17 @@ export function Chat() {
               </Button>
             </motion.div>
             
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <motion.div 
+              whileHover={{ scale: 1.05 }} 
+              whileTap={{ scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: 0.3 }}
+            >
               <Button
                 type="submit"
                 size="icon"
-                className="mr-2 bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                className="mr-2 bg-white hover:bg-gray-200 text-black transition-colors"
                 disabled={!input.trim() || isLoading || voiceState !== "idle"}
               >
                 <SendIcon className="w-4 h-4" />

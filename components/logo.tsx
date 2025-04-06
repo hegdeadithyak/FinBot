@@ -23,14 +23,14 @@ export function Logo() {
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Background gradient - modern blue-purple gradient
+      // Background gradient - black and white
       const gradient = ctx.createLinearGradient(0, 0, 44, 44)
-      gradient.addColorStop(0, "#4f46e5") // indigo
-      gradient.addColorStop(1, "#7c3aed") // purple
+      gradient.addColorStop(0, "#ffffff") // white
+      gradient.addColorStop(1, "#a0a0a0") // light gray
 
       // Draw rounded rectangle
       const radius = 10
-      ctx.fillStyle = gradient
+      ctx.fillStyle = "#000000"  // black background
       ctx.beginPath()
       ctx.moveTo(radius, 0)
       ctx.lineTo(canvas.width - radius, 0)
@@ -60,17 +60,24 @@ export function Logo() {
       ctx.fill()
 
       // Draw subtle accent line
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.5)"
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(34, 10)
       ctx.lineTo(34, 34)
       ctx.stroke()
+      
+      // Add subtle border
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.6)"
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(22, 22, 19, 0, Math.PI * 2)
+      ctx.stroke()
     }
 
     drawLogo()
 
-    // Optional: Add animation to the logo
+    // Add more animation to the logo
     let angle = 0
     const animate = () => {
       if (!ctx) return
@@ -80,19 +87,29 @@ export function Logo() {
       // Redraw logo
       drawLogo()
 
-      // Draw animated accent
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)"
+      // Draw animated elements
+      ctx.strokeStyle = "#ffffff"
       ctx.lineWidth = 2
+      
+      // Animated particles
+      const particles = 3
+      for (let i = 0; i < particles; i++) {
+        const offset = (Math.PI * 2 / particles) * i
+        const x = 22 + Math.cos(angle * 2 + offset) * 15
+        const y = 22 + Math.sin(angle * 2 + offset) * 15
+        
+        ctx.beginPath()
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2)
+        ctx.fillStyle = "#ffffff"
+        ctx.fill()
+      }
+
+      // Pulsating outer ring
+      const pulseSize = 1 + Math.sin(angle * 3) * 0.1
       ctx.beginPath()
-      
-      // Animated dot moving around edge
-      const x = 22 + Math.cos(angle * 3) * 18
-      const y = 22 + Math.sin(angle * 3) * 18
-      
-      ctx.arc(x, y, 2, 0, Math.PI * 2)
+      ctx.arc(22, 22, 20 * pulseSize, 0, Math.PI * 2)
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
       ctx.stroke()
-      ctx.fillStyle = "#ffffff"
-      ctx.fill()
 
       requestAnimationFrame(animate)
     }

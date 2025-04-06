@@ -27,46 +27,81 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className={`p-4 rounded-lg max-w-[80%] shadow-sm ${
+        transition={{ duration: 0.4 }}
+        className={`p-4 rounded-lg max-w-[80%] shadow-lg ${
           isUser
-            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+            ? "bg-white text-black border border-gray-300"
             : isSystem
-              ? "bg-amber-50 border border-amber-200 text-amber-800"
-              : "bg-white border border-gray-200 text-gray-800"
+              ? "bg-gray-900 border border-amber-700 text-amber-300"
+              : "bg-gray-900 border border-gray-700 text-white"
         }`}
+        whileHover={{ 
+          scale: 1.01, 
+          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" 
+        }}
       >
-        <div className="flex items-center mb-1">
+        <div className="flex items-center mb-2">
           {!isUser && !isSystem && (
-            <div className="flex items-center justify-center w-6 h-6 mr-2 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full shadow-sm">
+            <motion.div 
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-black rounded-full border border-gray-700 shadow-sm"
+              whileHover={{ rotate: 15 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
               <Bot className="text-white w-3 h-3" />
-            </div>
+            </motion.div>
           )}
           {isUser && (
-            <div className="flex items-center justify-center w-6 h-6 mr-2 bg-gray-700 rounded-full shadow-sm">
+            <motion.div 
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-black rounded-full shadow-sm border border-gray-300"
+              whileHover={{ rotate: 15 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
               <User className="text-white w-3 h-3" />
-            </div>
+            </motion.div>
           )}
           {isSystem && (
-            <div className="flex items-center justify-center w-6 h-6 mr-2 bg-amber-500 rounded-full shadow-sm">
+            <motion.div 
+              className="flex items-center justify-center w-6 h-6 mr-2 bg-amber-700 rounded-full shadow-sm"
+              whileHover={{ rotate: 15 }}
+              animate={{ 
+                boxShadow: ["0 0 0px rgba(217, 119, 6, 0)", "0 0 8px rgba(217, 119, 6, 0.5)", "0 0 0px rgba(217, 119, 6, 0)"]
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity,
+                rotate: { type: "spring", stiffness: 400, damping: 10 }
+              }}
+            >
               <BellRing className="text-white w-3 h-3" />
-            </div>
+            </motion.div>
           )}
-          <span className="font-medium text-sm">{isUser ? "You" : isSystem ? "System" : "FinBot"}</span>
+          <motion.span 
+            className={`font-medium text-sm ${isUser ? "text-black" : isSystem ? "text-amber-300" : "text-white"}`}
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            {isUser ? "You" : isSystem ? "System" : "FinBot"}
+          </motion.span>
           {message.language && message.language !== "English" && (
-            <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700">
+            <motion.span 
+              className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-300"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+            >
               {message.language}
-            </span>
+            </motion.span>
           )}
         </div>
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         <div 
-          className={`text-xs mt-1 ${
+          className={`text-xs mt-2 ${
             isUser 
-              ? "text-indigo-200" 
+              ? "text-gray-600" 
               : isSystem 
-                ? "text-amber-600" 
-                : "text-gray-500"
+                ? "text-amber-500" 
+                : "text-gray-400"
           }`}
         >
           {timeAgo}
