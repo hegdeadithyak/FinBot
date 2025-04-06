@@ -1,0 +1,26 @@
+<svg width="150" height="150" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="15" y="15" width="120" height="120" rx="24" fill="url(#gradient)" />
+  
+  <!-- Main vertical line of 'F' -->
+  <rect x="45" y="40" width="14" height="70" fill="white" />
+  
+  <!-- Top horizontal of 'F' -->
+  <rect x="45" y="40" width="60" height="14" fill="white" />
+  
+  <!-- Middle horizontal of 'F' -->
+  <rect x="45" y="68" width="45" height="14" fill="white" />
+  
+  <!-- Subtle accent line -->
+  <line x1="115" y1="40" x2="115" y2="110" stroke="rgba(255, 255, 255, 0.3)" stroke-width="2" />
+  
+  <!-- Decorative circles -->
+  <circle cx="115" cy="40" r="4" fill="white" />
+  <circle cx="115" cy="110" r="4" fill="white" />
+  
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="150" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f46e5" />
+      <stop offset="1" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+</svg> 
