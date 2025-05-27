@@ -52,15 +52,6 @@ def retrieve(query, k=6):
     return [docs[idx] | {"score": float(D[0][rank])}
             for rank, idx in enumerate(I[0])]
 
-
-# ───────────────────────────────────────────────────────────────
-# 0.  one-time set-up you (already) did elsewhere
-#
-#     ─ pdfs/           ← your source docs
-#     ├── index.faiss   ← vector store
-#     └── docs.pkl      ← metadata list  [{source,text}, …]
-# ───────────────────────────────────────────────────────────────
-
 def load_rag_system():
     """Load the vector store and metadata with error handling"""
     try:
@@ -101,7 +92,84 @@ def retrieve(query, k=6):
         print(f"Error during retrieval: {e}")
         return []
 
-# 2. Create a Gemini client with proper error handling
+# ───────────────────────────────────────────────────────────────
+# Web Search Integration using SERP API
+# ───────────────────────────────────────────────────────────────
+
+def web_search(query: str, num_results: int = 5) -> List[Dict]:
+    """
+    Search the web using SERP API
+    Returns a list of search results with title, snippet, and link
+    """
+    serp_api_key = "0e2d204db305a2f0fb94dc6964dbc82412f5fe7a7837a17f44f3376709307217"
+    if not serp_api_key:
+        print("Warning: SERP_API_KEY not found in environment variables")
+        return []
+
+    try:
+        url = "https://serpapi.com/search"
+        params = {
+            "engine": "google",
+            "q": query,
+            "api_key": serp_api_key,
+            "num": num_results,
+            "gl": "us",  # country
+            "hl": "en"   # language
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+
+        results = []
+        if "organic_results" in data:
+            for result in data["organic_results"]:
+                results.append({
+                    "source": result.get("link", ""),
+                    "title": result.get("title", ""),
+                    "text": result.get("snippet", ""),
+                    "score": 0.0,  # Web results don't have similarity scores
+                    "type": "web"
+                })
+
+        return results
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error making web search request: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"Error parsing search results: {e}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error in web search: {e}")
+        return []
+
+def should_use_web_search(local_results: List[Dict], score_threshold: float = 0.3) -> bool:
+    """
+    Determine if web search should be used based on local results quality
+    FAISS cosine distance: 0.0 = perfect match, higher = less similar
+    """
+    if not local_results:
+        print("No local results found, using web search")
+        return True
+
+    # Get best (lowest) similarity score
+    best_score = min(result["score"] for result in local_results)
+    print(f"Best local result score: {best_score:.3f} (threshold: {score_threshold})")
+
+    # If best score is above threshold, results are not good enough
+    if best_score > score_threshold:
+        print("Local results quality insufficient, using web search")
+        return True
+
+    print("Local results sufficient, skipping web search")
+    return False
+
+# ───────────────────────────────────────────────────────────────
+# Gemini Configuration
+# ───────────────────────────────────────────────────────────────
+
 try:
     import google.generativeai as genai
 
@@ -122,12 +190,14 @@ except Exception as e:
     print(f"Error configuring Gemini: {e}")
     genai = None
 
-def rag_chat_gemini(question: str,
-                    k: int = 6,
-                    model_name: str = "gemini-1.5-flash",
-                    temperature: float = 0.2) -> str:
+def rag_chat_with_websearch(question: str,
+                           k: int = 6,
+                           model_name: str = "gemini-1.5-flash",
+                           temperature: float = 0.2,
+                           use_web_fallback: bool = True,
+                           score_threshold: float = 0.7) -> str:
     """
-    RAG chat function with improved error handling
+    Enhanced RAG chat function with web search fallback
     """
     if genai is None:
         return "Error: Gemini client not available"
@@ -136,23 +206,56 @@ def rag_chat_gemini(question: str,
         return "Error: Question cannot be empty"
 
     try:
-        # Retrieve relevant passages
-        passages = retrieve(question, k)
-        print(passages)
+        # First, try local retrieval
+        local_passages = retrieve(question, k)
+        print(f"Local results found: {len(local_passages)}")
+
+        # Determine if we should use web search
+        use_websearch = use_web_fallback and should_use_web_search(local_passages, score_threshold)
+
+        passages = local_passages
+        context_sources = "local knowledge base"
+
+        if use_websearch:
+            print("Local results insufficient, searching web...")
+            web_results = web_search(question, num_results=3)
+            print(f"Web results found: {len(web_results)}")
+
+            if web_results:
+                # Combine local and web results
+                passages = local_passages + web_results
+                context_sources = "local knowledge base and web search"
+            else:
+                print("Web search failed, using only local results")
+
         if not passages:
-            return "Error: No relevant documents found or retrieval failed"
+            return "Error: No relevant information found in local documents or web search"
 
         # Build context from passages
-        context = "\n\n".join(
-            f"[{i+1}] ({p['source']}, score={p['score']:.3f})\n"
-            f"{textwrap.fill(p['text'], 100)}"
-            for i, p in enumerate(passages)
-        )
+        context_parts = []
+        for i, p in enumerate(passages):
+            source_info = p['source'] if p['source'] else "Unknown"
+            if p.get('type') == 'web':
+                title = p.get('title', 'Web Result')
+                context_parts.append(
+                    f"[{i+1}] Web: {title}\n"
+                    f"Source: {source_info}\n"
+                    f"{textwrap.fill(p['text'], 100)}"
+                )
+            else:
+                context_parts.append(
+                    f"[{i+1}] Local: ({source_info}, similarity score={p['score']:.3f})\n"
+                    f"{textwrap.fill(p['text'], 100)}"
+                )
+
+        context = "\n\n".join(context_parts)
 
         system_instruction = (
-            "You are a concise QA assistant. "
-            "Answer **only** from the context below; if the answer is not contained, say you don't know. "
-            "Cite passage numbers in square brackets."
+            "You are a helpful QA assistant. "
+            f"Answer the question using information from the {context_sources}. "
+            "If the answer is not contained in the provided context, say you don't know. "
+            "Cite passage numbers in square brackets [1], [2], etc. "
+            "When citing web sources, mention they are from web search."
         )
 
         user_prompt = f"Context:\n{context}\n\nQuestion: {question}"
@@ -173,15 +276,86 @@ def rag_chat_gemini(question: str,
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
+def rag_chat_gemini(question: str,
+                    k: int = 6,
+                    model_name: str = "gemini-1.5-flash",
+                    temperature: float = 0.2) -> str:
+    """
+    Original RAG chat function (local only) - kept for backward compatibility
+    """
+    return rag_chat_with_websearch(
+        question=question,
+        k=k,
+        model_name=model_name,
+        temperature=temperature,
+        use_web_fallback=False
+    )
+
 # 4. Test the system
 if __name__ == "__main__":
+    print("Initializing RAG system...")
+
+    # Check individual components
+    print(f"Index loaded: {index is not None}")
+    print(f"Docs loaded: {docs is not None and len(docs) if docs else 0}")
+    print(f"Embeddings loaded: {embed is not None}")
+    print(f"Gemini available: {genai is not None}")
+
     if all([index is not None, docs is not None, embed is not None, genai is not None]):
-        print("RAG system loaded successfully!")
-        print("\nTesting with your question:")
-        result = rag_chat_gemini("How do I retrieve my HDFC lost Debit Card")
-        print(result)
+        print("\n" + "="*60)
+        print("RAG SYSTEM LOADED SUCCESSFULLY!")
+        print("="*60)
+
+        # Test local retrieval first
+        test_query = "How do I retrieve my HDFC lost Debit Card"
+        print(f"\nTesting local retrieval for: '{test_query}'")
+        local_results = retrieve(test_query, k=3)
+        print(f"Local results: {len(local_results)}")
+        for i, result in enumerate(local_results):
+            print(f"  {i+1}. Score: {result['score']:.3f}, Source: {result.get('source', 'Unknown')}")
+
+        # Test web search independently
+        print(f"\nTesting web search for: '{test_query}'")
+        web_results = web_search(test_query, num_results=3)
+        print(f"Web results: {len(web_results)}")
+        for i, result in enumerate(web_results):
+            print(f"  {i+1}. Title: {result.get('title', 'No title')[:50]}...")
+
+        # Test full system
+        print("\n" + "="*60)
+        print("Testing FULL RAG WITH WEB SEARCH:")
+        print("="*60)
+        result_with_web = rag_chat_with_websearch(test_query, score_threshold=0.3)
+        print("\nFINAL ANSWER:")
+        print("-" * 40)
+        print(result_with_web)
+
+        # Test with a question that definitely needs web search
+        print("\n" + "="*60)
+        print("Testing question requiring web search:")
+        print("="*60)
+        web_question = "What are the current HDFC bank FD interest rates in 2025?"
+        result_web = rag_chat_with_websearch(web_question, score_threshold=0.2)
+        print(f"\nQuestion: {web_question}")
+        print("\nFINAL ANSWER:")
+        print("-" * 40)
+        print(result_web)
+
     else:
-        print("RAG system failed to load. Please check your setup:")
-        print("- Ensure index.faiss and docs.pkl exist")
-        print("- Install required packages: sentence-transformers, faiss-cpu, google-generativeai")
-        print("- Set GEMINI_API_KEY environment variable")
+        print("\n" + "="*60)
+        print("RAG SYSTEM SETUP ISSUES:")
+        print("="*60)
+        if index is None:
+            print("❌ index.faiss not found or failed to load")
+        if docs is None:
+            print("❌ docs.pkl not found or failed to load")
+        if embed is None:
+            print("❌ SentenceTransformer failed to load")
+        if genai is None:
+            print("❌ Google Generative AI not available")
+
+        print("\nSetup checklist:")
+        print("1. Ensure index.faiss and docs.pkl exist in current directory")
+        print("2. Install: pip install sentence-transformers faiss-cpu google-generativeai requests")
+        print("3. Set GEMINI_API_KEY environment variable")
+        print("4. Verify SERP API key is working")
