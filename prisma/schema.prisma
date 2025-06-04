@@ -1,0 +1,260 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String?   @unique
+  firstName         String?
+  lastName          String?
+  passwordHash      String
+  emailVerified     Boolean   @default(false)
+  emailVerificationToken String?
+  resetPasswordToken String?
+  resetPasswordExpires DateTime?
+  preferredLanguage String    @default("English")
+  voiceEnabled      Boolean   @default(true)
+  autoReadMessages  Boolean   @default(false)
+  theme             String    @default("dark")
+  searchResults       SearchResult[]
+  retrievalAnalytics  RetrievalAnalytics[]
+  
+  // Banking specific fields
+  accountNumber     String?
+  bankBranch        String?
+  customerType      String?   // individual, business, premium
+  kycStatus         String    @default("pending") // pending, verified, rejected
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  sessions          Session[]
+  chatSessions      ChatSession[]
+  messages          Message[]
+  contextEntries    ContextEntry[]
+  bankingProfiles   BankingProfile[]
+  
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("sessions")
+}
+
+model ChatSession {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String?
+  summary     String?
+  language    String    @default("English")
+  isActive    Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  endedAt     DateTime?
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  
+  @@map("chat_sessions")
+}
+
+model Message {
+  id            String      @id @default(cuid())
+  chatSessionId String
+  userId        String
+  role          MessageRole
+  content       String
+  originalContent String?   // For translated messages
+  language      String?
+  
+  // Message metadata
+  liked         Boolean?
+  disliked      Boolean?
+  regenerated   Boolean     @default(false)
+  tokenCount    Int?
+  
+  // Context and memory
+  contextUsed   Json?       // Context retrieved from Mem0
+  memoryStored  Boolean     @default(false)
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+}
+
+model ContextEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  memoryId    String   @unique // Mem0 memory ID
+  content     String
+  category    String   // account_info, transaction_history, preferences, etc.
+  importance  Float    @default(1.0)
+  
+  // Metadata
+  tags        String[]
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime?
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("context_entries")
+}
+
+model BankingProfile {
+  id              String   @id @default(cuid())
+  userId          String
+  accountType     String   // savings, checking, credit, loan
+  accountNumber   String
+  balance         Decimal? @db.Decimal(15, 2)
+  currency        String   @default("USD")
+  isActive        Boolean  @default(true)
+  
+  // Account details
+  openedAt        DateTime?
+  closedAt        DateTime?
+  interestRate    Decimal? @db.Decimal(5, 4)
+  creditLimit     Decimal? @db.Decimal(15, 2)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  
+  @@unique([userId, accountNumber])
+  @@map("banking_profiles")
+}
+
+model Transaction {
+  id              String         @id @default(cuid())
+  bankingProfileId String
+  type            TransactionType
+  amount          Decimal        @db.Decimal(15, 2)
+  currency        String         @default("USD")
+  description     String
+  category        String?        // food, transport, utilities, etc.
+  
+  // Transaction details
+  fromAccount     String?
+  toAccount       String?
+  reference       String?
+  status          String         @default("completed") // pending, completed, failed
+  
+  transactionDate DateTime
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  bankingProfile  BankingProfile @relation(fields: [bankingProfileId], references: [id], onDelete: Cascade)
+  
+  @@map("transactions")
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  key         String   @unique
+  service     String   // openai, mem0, google_translate, etc.
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime?
+  
+  @@map("api_keys")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+  TRANSFER
+  PAYMENT
+  DEPOSIT
+  WITHDRAWAL
+}
+// Add these models to your existing schema.prisma file
+
+model SearchResult {
+  id          String   @id @default(cuid())
+  userId      String
+  query       String
+  results     Json
+  category    String
+  resultCount Int
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("search_results")
+}
+
+model VectorDocument {
+  id          String   @id
+  content     String
+  metadata    Json
+  embedding   Float[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("vector_documents")
+}
+
+model RetrievalAnalytics {
+  id                String   @id @default(cuid())
+  userId            String
+  query             String
+  webResultCount    Int      @default(0)
+  vectorResultCount Int      @default(0)
+  memoryResultCount Int      @default(0)
+  bankingResultCount Int     @default(0)
+  confidence        Float
+  retrievalTime     DateTime
+  
+  createdAt         DateTime @default(now())
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("retrieval_analytics")
+}
+
+

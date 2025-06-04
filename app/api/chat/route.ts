@@ -1,66 +1,64 @@
 /**
- * Streaming proxy to Mistral-AI (/v1/chat/completions).
- *
- * ① Keeps your API key on the server
- * ② Accepts `POST` with a { messages: [...] } body
- * ③ Returns a text/event-stream so your React <Chat /> can read tokens incrementally
- *
- * ➜ ENV:   MISTRAL_API_KEY=6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ
- * ➜ URL:   /api/chat      (pages router)
- *          /app/api/chat  (app router)
+ * @Author: Adithya
+ * @Date:   2025-06-04
+ * @Last Modified by:   Adithya
+ * @Last Modified time: 2025-06-04
  */
+import type { NextRequest } from "next/server"
+import { MistralAgent } from "@/lib/mistral-agent"
 
-/* ---------- Type helpers ---------- */
-type Role = 'system' | 'user' | 'assistant'
-interface ChatMessage { role: Role; content: string }
+const agent = new MistralAgent(process.env.MISTRAL_API_KEY || "6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ")
 
-/* ---------- Runtime hint (edge = super-low latency) ---------- */
-export const runtime = 'edge'
+export async function POST(request: NextRequest) {
+  try {
+    const { messages } = await request.json()
 
-/* ---------- POST handler ---------- */
-export async function POST(req: Request): Promise<Response> {
-    /* 1️⃣ parse body */
-    let messages: ChatMessage[]
-    try {
-        ({ messages } = (await req.json()) as { messages: ChatMessage[] })
-        if (!messages?.length) throw new Error()
-    } catch {
-        return json({ error: 'Bad request – expected { messages: [...] }' }, 400)
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "'messages' array is required and cannot be empty." }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
     }
 
-    /* 2️⃣ forward to Mistral */
-    const upstream = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method : 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization : `Bearer ${process.env.MISTRAL_API_KEY ?? ''}`,
-        },
-        body: JSON.stringify({
-            model : 'mistral-large-latest',   // pick any supported model
-            stream: true,                     // ← SSE
-            messages,
-        }),
+    const stream = await agent.stream(messages)
+
+    const encoder = new TextEncoder()
+
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices?.[0]?.delta?.content
+            if (content) {
+              const data = `data: ${JSON.stringify({ content })}\n\n`
+              controller.enqueue(encoder.encode(data))
+            }
+          }
+
+          const doneData = `data: [DONE]\n\n`
+          controller.enqueue(encoder.encode(doneData))
+          controller.close()
+        } catch (error) {
+          console.error("Streaming error:", error)
+          const errorData = `data: ${JSON.stringify({ error: "Streaming failed" })}\n\n`
+          controller.enqueue(encoder.encode(errorData))
+          controller.close()
+        }
+      },
     })
 
-    if (!upstream.ok || !upstream.body)
-        return json({ error: 'Mistral upstream error' }, upstream.status)
-
-    /* 3️⃣ pipe the SSE stream directly back */
-    return new Response(upstream.body, {
-        status : 200,
-        headers: {
-            'Content-Type'              : 'text/event-stream; charset=utf-8',
-            'Cache-Control'             : 'no-cache, no-transform',
-            Connection                  : 'keep-alive',
-            'Access-Control-Allow-Origin': '*', // relax CORS if you need
-        },
+    return new Response(readableStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
     })
-}
-
-/* ---------- helper for small JSON errors ---------- */
-function json(obj: unknown, status = 200): Response {
-    return new Response(JSON.stringify(obj), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
+  } catch (error: any) {
+    console.error("Streaming setup error:", error)
+    return new Response(JSON.stringify({ error: "Failed to setup streaming" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
     })
+  }
 }
