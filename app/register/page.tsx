@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-06-06
  */
 "use client"
 
@@ -168,7 +168,7 @@ export default function RegisterPage() {
             {/* Username Field */}
             <div className="space-y-2">
               <label htmlFor="username" className="text-sm font-medium text-foreground">
-                Username (Optional)
+                Username
               </label>
               <input
                 id="username"

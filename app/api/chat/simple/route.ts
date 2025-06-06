@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`Found ${webResults.length} web search results`)
+        console.log(webResults);
       } catch (searchError) {
         console.error("Web search failed:", searchError)
         // Continue without web results if search fails

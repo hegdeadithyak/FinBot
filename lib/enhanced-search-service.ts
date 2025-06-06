@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-04
+ * @Last Modified time: 2025-06-05
  */
 import { PineconeService } from "./pinecone-service"
 import { SerpService } from "./serp-service"
@@ -88,7 +88,6 @@ export class EnhancedSearchService {
     const searchStrategy: string[] = []
 
     try {
-      // Get user profile
       const user = await prisma.user.findUnique({
         where: { id: userId },
       })
@@ -97,7 +96,6 @@ export class EnhancedSearchService {
         throw new Error("User not found")
       }
 
-      // 1. Try Pinecone vector search first
       if (includeVector) {
         try {
           console.log("Searching Pinecone for:", query)
@@ -114,7 +112,6 @@ export class EnhancedSearchService {
         }
       }
 
-      // 2. Search memory (Mem0)
       if (includeMemory) {
         try {
           const memoryResults = await this.mem0Service.retrieveMemories(userId, query, {
