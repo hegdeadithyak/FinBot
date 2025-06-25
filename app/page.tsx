@@ -6,9 +6,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { ChatBlogLayout } from "@/components/chat-blog-layout"
 import { Zap, MessageSquare, Brain, Shield, Sparkles, ArrowRight, Bot, TrendingUp, Star } from "lucide-react"
 import Link from "next/link"
-import { Chat } from "@/components/chat"
 import { Sidebar } from "@/components/sidebar"
 
 interface User {
@@ -65,7 +65,7 @@ export default function Home() {
           </motion.div>
 
           <div className="flex-1 flex flex-col">
-            <Chat sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+            <ChatBlogLayout sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
           </div>
         </div>
       </ThemeProvider>
