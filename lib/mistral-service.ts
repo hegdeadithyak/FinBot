@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-04
+ * @Last Modified time: 2025-06-09
  */
 import { Mistral } from "@mistralai/mistralai"
 
@@ -167,7 +167,7 @@ AVAILABLE CONTEXT AND SOURCES:
     if (context.webResults && context.webResults.length > 0) {
       prompt += `\nWEB SEARCH RESULTS:\n`
       context.webResults.forEach((result: any, index: number) => {
-        prompt += `[W${index + 1}] ${result.title}\n`
+        prompt += `[${index + 1}] ${result.title}\n`
         prompt += `    ${result.snippet}\n`
         prompt += `    Source: ${result.link}\n\n`
       })
@@ -198,7 +198,8 @@ AVAILABLE CONTEXT AND SOURCES:
 
     prompt += `\nINSTRUCTIONS:
 1. Use the provided context to answer the user's question accurately
-2. ALWAYS cite your sources using the reference numbers (e.g., [W1], [V2], [M3], [B1])
+2. ALWAYS cite your sources using the reference numbers (e.g., [1],[2],[3]) so with links 
+    formatted for library react-markdown
 3. If using web sources, mention the website name
 4. Prioritize user's personal data (V, M, B sources) over web sources
 5. If information is uncertain or conflicting, mention this clearly

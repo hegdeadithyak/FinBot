@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-06-09
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { AuthService } from "@/lib/auth"
@@ -17,17 +17,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Validate input
     const validatedData = loginSchema.parse(body)
 
-    // Get client info
     const ipAddress = request.ip || request.headers.get("x-forwarded-for") || "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown"
 
-    // Login user
     const result = await AuthService.login(validatedData, ipAddress, userAgent)
 
-    // Set session cookie
     const response = NextResponse.json({
       success: true,
       user: result.user,

@@ -55,6 +55,8 @@ interface ChatProps {
 
 const API_BASE = process.env.NEXT_PUBLIC_FINBOT_URL ?? "http://localhost:3001"
 const SIMPLE_ENDPOINT = `/api/chat/simple`
+// Google Translate API key - should be stored in environment variables in production
+const GOOGLE_TRANSLATE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY ?? ""
 
 declare global {
   interface Window {
@@ -85,12 +87,31 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     sources: [],
   })
 
+  const [selectedLanguage, setSelectedLanguage] = useState("EN")
+  const [autoReadMessages, setAutoReadMessages] = useState(false)
+
+  const languageOptions = [
+    { code: "EN", name: "English", speechLang: "en-US", translationCode: "en" },
+    { code: "HI", name: "Hindi", speechLang: "hi-IN", translationCode: "hi" },
+    { code: "TEL", name: "Telugu", speechLang: "te-IN", translationCode: "te" },
+    { code: "ES", name: "Spanish", speechLang: "es-ES", translationCode: "es" },
+    { code: "FR", name: "French", speechLang: "fr-FR", translationCode: "fr" },
+    { code: "DE", name: "German", speechLang: "de-DE", translationCode: "de" },
+    { code: "ZH", name: "Chinese", speechLang: "zh-CN", translationCode: "zh" },
+    { code: "AR", name: "Arabic", speechLang: "ar-SA", translationCode: "ar" },
+    { code: "JA", name: "Japanese", speechLang: "ja-JP", translationCode: "ja" },
+    { code: "KO", name: "Korean", speechLang: "ko-KR", translationCode: "ko" },
+  ]
+
   const inputRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const synthRef = useRef<SpeechSynthesis | null>(null)
   const speakingRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -144,6 +165,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       if (window.speechSynthesis) {
         synthRef.current = window.speechSynthesis
       }
+
+      // Initialize AudioContext for recording
+      if (window.AudioContext) {
+        audioContextRef.current = new AudioContext()
+      }
     }
 
     return () => {
@@ -153,6 +179,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       }
       if (synthRef.current && speakingRef.current) {
         synthRef.current.cancel()
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop()
       }
     }
   }, [])
@@ -175,96 +204,298 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     }
   }, [messages, languageAsked, preferredLanguage])
 
+  useEffect(() => {
+    if (recognitionRef.current) {
+      const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
+      if (currentLang) {
+        recognitionRef.current.lang = currentLang.speechLang
+      }
+    }
+  }, [selectedLanguage])
+
   /* ────────────────── voice functions ─────────────────────── */
-  const toggleListening = () => {
+  // Record audio using MediaRecorder API
+  const recordAudioBlob = (): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          audioChunksRef.current = []
+          const mediaRecorder = new MediaRecorder(stream)
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              audioChunksRef.current.push(e.data)
+            }
+          }
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" })
+            const tracks = stream.getTracks()
+            tracks.forEach((track) => track.stop())
+            resolve(audioBlob)
+          }
+
+          mediaRecorderRef.current = mediaRecorder
+          mediaRecorder.start()
+
+          // Record for a maximum of 15 seconds
+          setTimeout(() => {
+            if (mediaRecorder.state === "recording") {
+              mediaRecorder.stop()
+            }
+          }, 15000)
+        })
+        .catch(reject)
+    })
+  }
+
+  // Google Cloud Speech-to-Text API integration
+  const toggleListening = async () => {
     if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-        setIsListening(false)
+      setIsListening(false)
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop()
       }
     } else {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start()
-          setIsListening(true)
-        } catch (error) {
-          console.error("Error starting speech recognition:", error)
+      try {
+        setIsListening(true)
+        setTranscript("")
+
+        // Start recording
+        const audioBlob = await recordAudioBlob()
+
+        // Create form data for API request
+        const formData = new FormData()
+        formData.append("audio", audioBlob)
+        formData.append(
+          "language",
+          languageOptions.find((lang) => lang.code === selectedLanguage)?.translationCode || "en",
+        )
+
+        // Call Google Cloud Speech-to-Text API via your backend proxy
+        const response = await fetch("/api/transcribe", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Speech recognition failed: ${response.statusText}`)
         }
-      } else {
-        alert("Speech recognition is not supported in your browser.")
+
+        const { transcript, detectedLanguage } = await response.json()
+
+        // Update the transcript and input field
+        setTranscript(transcript)
+        if (inputRef.current) {
+          inputRef.current.value = transcript
+        }
+
+        // If language was detected and different from selected, maybe suggest changing
+        if (detectedLanguage && detectedLanguage !== selectedLanguage) {
+          const detectedOption = languageOptions.find(
+            (lang) => lang.translationCode === detectedLanguage.toLowerCase().substring(0, 2),
+          )
+          if (detectedOption) {
+            setDetectedLanguage(detectedOption.translationCode)
+            if (!languageAsked) {
+              setShowLanguagePrompt(true)
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Speech recognition error:", error)
+        setIsListening(false)
+      } finally {
+        setIsListening(false)
       }
     }
   }
 
-  const speakText = (text: string, messageId: string, language = "en-US") => {
-    if (!synthRef.current) return
+  // Google Cloud Text-to-Speech API integration
+  const speakText = async (text: string, messageId: string, language?: string) => {
+    try {
+      // Stop any current speech
+      if (synthRef.current) {
+        synthRef.current.cancel()
+      }
 
-    synthRef.current.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = language
+      // Update UI to show speaking state
+      setMessages((msgs) =>
+        msgs.map((m) => ({
+          ...m,
+          isPlaying: m.id === messageId,
+        })),
+      )
 
-    const voices = synthRef.current.getVoices()
-    const voice = voices.find((v) => v.lang.startsWith(language.split("-")[0]))
-    if (voice) utterance.voice = voice
+      // Get language code for TTS
+      const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
+      const langCode = language || currentLang?.speechLang || "en-US"
 
-    setMessages((msgs) =>
-      msgs.map((m) => ({
-        ...m,
-        isPlaying: m.id === messageId,
-      })),
-    )
+      // Call Google Cloud Text-to-Speech API via your backend proxy
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          languageCode: langCode,
+          // Optional parameters for voice selection
+          voiceName: langCode.startsWith("en") ? "en-US-Wavenet-F" : undefined,
+          ssmlGender: "FEMALE",
+        }),
+      })
 
-    utterance.onend = () => {
+      if (!response.ok) {
+        throw new Error(`Text-to-speech failed: ${response.statusText}`)
+      }
+
+      // Get audio content as ArrayBuffer
+      const audioData = await response.arrayBuffer()
+
+      // Create audio context if needed
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext()
+      }
+
+      // Decode and play audio
+      const audioContext = audioContextRef.current
+      const audioBuffer = await audioContext.decodeAudioData(audioData)
+      const source = audioContext.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(audioContext.destination)
+
+      // Handle completion
+      source.onended = () => {
+        setMessages((msgs) =>
+          msgs.map((m) => ({
+            ...m,
+            isPlaying: false,
+          })),
+        )
+      }
+
+      // Start playback
+      source.start(0)
+    } catch (error) {
+      console.error("Text-to-speech error:", error)
+      // Reset playing state on error
       setMessages((msgs) =>
         msgs.map((m) => ({
           ...m,
           isPlaying: false,
         })),
       )
-      speakingRef.current = null
     }
-
-    speakingRef.current = utterance
-    synthRef.current.speak(utterance)
   }
 
   const stopSpeaking = () => {
     if (synthRef.current) {
       synthRef.current.cancel()
-      setMessages((msgs) =>
-        msgs.map((m) => ({
-          ...m,
-          isPlaying: false,
-        })),
-      )
-      speakingRef.current = null
     }
+
+    // If using AudioContext
+    if (audioContextRef.current) {
+      // Create a new AudioContext to effectively stop all sounds
+      audioContextRef.current
+        .close()
+        .then(() => {
+          audioContextRef.current = new AudioContext()
+        })
+        .catch(console.error)
+    }
+
+    setMessages((msgs) =>
+      msgs.map((m) => ({
+        ...m,
+        isPlaying: false,
+      })),
+    )
+    speakingRef.current = null
   }
 
   const detectLanguage = async (text: string): Promise<string | null> => {
-    const commonPhrases: Record<string, string[]> = {
-      es: ["hola", "como estas", "gracias", "por favor", "ayuda"],
-      fr: ["bonjour", "comment ça va", "merci", "s'il vous plaît", "aide"],
-      de: ["hallo", "wie geht es dir", "danke", "bitte", "hilfe"],
-      zh: ["你好", "如何", "谢谢", "请", "帮助"],
-      hi: ["नमस्ते", "कैसे हो", "धन्यवाद", "कृपया", "मदद"],
-      ar: ["مرحبا", "كيف حالك", "شكرا", "من فضلك", "مساعدة"],
-    }
+    try {
+      // Call Google Translate API to detect language
+      const response = await fetch("/api/detect-language", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text }),
+      })
 
-    const lowerText = text.toLowerCase()
-
-    for (const [lang, phrases] of Object.entries(commonPhrases)) {
-      if (phrases.some((phrase) => lowerText.includes(phrase))) {
-        return lang
+      if (!response.ok) {
+        throw new Error(`Language detection failed: ${response.statusText}`)
       }
-    }
 
-    return null
+      const { language } = await response.json()
+      return language
+    } catch (error) {
+      console.error("Language detection error:", error)
+
+      // Fallback to simple detection for common phrases
+      const commonPhrases: Record<string, string[]> = {
+        es: ["hola", "como estas", "gracias", "por favor", "ayuda"],
+        fr: ["bonjour", "comment ça va", "merci", "s'il vous plaît", "aide"],
+        de: ["hallo", "wie geht es dir", "danke", "bitte", "hilfe"],
+        zh: ["你好", "如何", "谢谢", "请", "帮助"],
+        hi: ["नमस्ते", "कैसे हो", "धन्यवाद", "कृपया", "मदद"],
+        ar: ["مرحبا", "كيف حالك", "شكرا", "من فضلك", "مساعدة"],
+      }
+
+      const lowerText = text.toLowerCase()
+
+      for (const [lang, phrases] of Object.entries(commonPhrases)) {
+        if (phrases.some((phrase) => lowerText.includes(phrase))) {
+          return lang
+        }
+      }
+
+      return null
+    }
   }
 
   const translateText = async (text: string, targetLang: string): Promise<string> => {
-    console.log(`Translating to ${targetLang}: ${text}`)
-    return text
+    try {
+      // Call Google Translate API
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          targetLanguage: targetLang,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Translation failed: ${response.statusText}`)
+      }
+
+      const { translatedText } = await response.json()
+      return translatedText
+    } catch (error) {
+      console.error(`Translation error:`, error)
+      return text // Return original text on error
+    }
+  }
+
+  const translateToSelectedLanguage = async (text: string): Promise<string> => {
+    const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
+
+    if (!currentLang || currentLang.code === "EN") {
+      return text
+    }
+
+    try {
+      return await translateText(text, currentLang.translationCode)
+    } catch (error) {
+      console.error("Translation error:", error)
+      return text
+    }
   }
 
   const setUserLanguagePreference = (language: string) => {
@@ -272,29 +503,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     setShowLanguagePrompt(false)
     setLanguageAsked(true)
 
-    if (recognitionRef.current) {
-      switch (language) {
-        case "Spanish":
-          recognitionRef.current.lang = "es-ES"
-          break
-        case "French":
-          recognitionRef.current.lang = "fr-FR"
-          break
-        case "German":
-          recognitionRef.current.lang = "de-DE"
-          break
-        case "Chinese":
-          recognitionRef.current.lang = "zh-CN"
-          break
-        case "Hindi":
-          recognitionRef.current.lang = "hi-IN"
-          break
-        case "Arabic":
-          recognitionRef.current.lang = "ar-SA"
-          break
-        default:
-          recognitionRef.current.lang = "en-US"
-      }
+    // Find the language code that matches the selected language name
+    const langOption = languageOptions.find((option) => option.name.toLowerCase() === language.toLowerCase())
+
+    if (langOption) {
+      setSelectedLanguage(langOption.code)
     }
 
     const systemMessage: Message = {
@@ -423,16 +636,27 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         const messageId = Date.now().toString()
         const responseContent = data.response
 
-        setMessages((msgs) => [
-          ...msgs,
-          {
-            id: messageId,
-            role: "assistant",
-            content: responseContent,
-            timestamp: new Date(),
-            sources: data.sources || [],
-          },
-        ])
+        // Translate the response if not in English
+        const translatedContent =
+          selectedLanguage !== "EN" ? await translateToSelectedLanguage(responseContent) : responseContent
+
+        const newMessage: Message = {
+          id: messageId,
+          role: "assistant",
+          content: translatedContent,
+          timestamp: new Date(),
+          sources: data.sources || [],
+        }
+
+        setMessages((msgs) => [...msgs, newMessage])
+
+        // Auto-read the assistant message
+        if (autoReadMessages) {
+          const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
+          setTimeout(() => {
+            speakText(translatedContent, messageId, currentLang?.speechLang || "en-US")
+          }, 500)
+        }
       } else if (data.error) {
         console.error("API returned error:", data.error)
         setMessages((msgs) => [
@@ -461,8 +685,25 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     }
   }
 
+  useEffect(() => {
+    // Load and cache available voices
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      // Some browsers need a small delay to properly load voices
+      setTimeout(() => {
+        const voices = window.speechSynthesis.getVoices()
+        console.log(
+          "Available voices:",
+          voices.map((v) => `${v.name} (${v.lang})`),
+        )
+      }, 100)
+    }
+  }, [])
+
   return (
-    <div className="flex h-screen bg-background">
+    <div
+      className="flex h-screen bg-background font-sans"
+      style={{ fontFamily: "'Noto Sans', 'Noto Sans Telugu', sans-serif" }}
+    >
       {/* Sources Panel */}
       <AnimatePresence>
         {sourcesPanel.isOpen && (
@@ -703,7 +944,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                           <div className="flex flex-wrap gap-2 mt-3">
                             <motion.button
                               onClick={() => showSources(message.sources!)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-xs font-medium transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white  text-primary rounded-full text-xs font-medium transition-colors"
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                             >
@@ -771,25 +1012,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() =>
-                                message.isPlaying
-                                  ? stopSpeaking()
-                                  : speakText(
-                                      message.content,
-                                      message.id,
-                                      preferredLanguage === "Spanish"
-                                        ? "es-ES"
-                                        : preferredLanguage === "French"
-                                          ? "fr-FR"
-                                          : preferredLanguage === "German"
-                                            ? "de-DE"
-                                            : preferredLanguage === "Chinese"
-                                              ? "zh-CN"
-                                              : preferredLanguage === "Hindi"
-                                                ? "hi-IN"
-                                                : preferredLanguage === "Arabic"
-                                                  ? "ar-SA"
-                                                  : "en-US",
-                                    )
+                                message.isPlaying ? stopSpeaking() : speakText(message.content, message.id)
                               }
                             >
                               {message.isPlaying ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -919,6 +1142,52 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           transition={{ duration: 0.3 }}
         >
           <div className="max-w-3xl mx-auto">
+            {/* Language and Auto-read Controls */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
+                  <select
+                    value={selectedLanguage}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    className="bg-muted border border-border rounded-md px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {languageOptions.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.code} - {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-muted-foreground" />
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoReadMessages}
+                      onChange={(e) => setAutoReadMessages(e.target.checked)}
+                      className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
+                    />
+                    Auto-read responses
+                  </label>
+                </div>
+              </div>
+
+              {/* Stop All Speech Button */}
+              {messages.some((m) => m.isPlaying) && (
+                <motion.button
+                  onClick={stopSpeaking}
+                  className="flex items-center gap-2 px-3 py-1 bg-red-500/10 text-red-500 rounded-md text-sm hover:bg-red-500/20 transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <VolumeX className="w-4 h-4" />
+                  Stop Reading
+                </motion.button>
+              )}
+            </div>
+
             <form onSubmit={onSubmit} className="relative">
               <div className="flex items-end gap-2 bg-muted/50 rounded-2xl border border-border focus-within:border-muted-foreground transition-colors">
                 <button type="button" className="p-3 text-muted-foreground hover:text-foreground transition-colors">
@@ -928,7 +1197,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                 <input
                   ref={inputRef}
                   type="text"
-                  placeholder={isListening ? "Listening..." : "Message FinBot..."}
+                  placeholder={
+                    isListening
+                      ? "Listening..."
+                      : `Message FinBot in ${languageOptions.find((l) => l.code === selectedLanguage)?.name}...`
+                  }
                   className="flex-1 bg-transparent px-2 py-3 outline-none resize-none max-h-32 text-foreground placeholder:text-muted-foreground"
                   disabled={pending || !isConnected || isListening}
                   value={isListening ? transcript : undefined}
