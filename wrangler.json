@@ -1,0 +1,7 @@
+{
+  "name": "finbot-custom-llm",
+  "main": "./backend-hono/server.ts",
+  "compatibility_date": "2024-11-02",
+  "tsconfig": "./tsconfig.json",
+  "node_compat": true
+}
