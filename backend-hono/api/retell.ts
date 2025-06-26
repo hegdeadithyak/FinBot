@@ -16,7 +16,10 @@ const SYSTEM_PROMPT =
 
 const retell = new Hono()
 
-function convert(transcript: Utterance[]) {
+/**
+ * Convert Retell transcript entries to Mistral chat messages.
+ */
+function toChatMessages(transcript: Utterance[]) {
   return transcript.map((t) => ({
     role: t.role === 'agent' ? 'assistant' : t.role,
     content: t.content,
@@ -61,7 +64,7 @@ retell.get(
         ) {
           const messages = [
             { role: 'system', content: SYSTEM_PROMPT },
-            ...convert(req.transcript),
+            ...toChatMessages(req.transcript),
           ]
           let full = ''
           for await (const chunk of mistral.streamResponse(messages)) {
@@ -77,7 +80,7 @@ retell.get(
           const end: CustomLlmResponse = {
             response_type: 'response',
             response_id: req.response_id,
-            content: '',
+            content: full,
             content_complete: true,
           }
           ws.send(JSON.stringify(end))
