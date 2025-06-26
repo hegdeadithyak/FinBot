@@ -78,7 +78,8 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
-    "hono": "^4.3.0"
+    "hono": "^4.3.0",
+    "retell-sdk": "^4.6.0"
   },
   "devDependencies": {
     "@types/node": "^22",
