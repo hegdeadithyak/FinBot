@@ -81,20 +81,21 @@ jobs:
 
       - name: Unzip artifact for deployment
         run: unzip release.zip
-        env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0ABEFF01672948D394D2136134DDDE88 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_86599C7AE4BF4484B920617B2D3955BA }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_4071C46A81DE48D593451C7AD3E8AE45 }}
-       
+
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'finby'
           slot-name: 'Production'
           package: .
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
