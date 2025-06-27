@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -26,18 +26,49 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '22.x'
+          cache: 'npm'
 
-      - name: npm install, build, and test
+      - name: Install dependencies
         run: |
-          rm -rf ./node_modules 
-          npm install --legacy-peer-deps
-          npx prisma generate
-          npm run build --if-present
-          npm run test --if-present
-      - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
-      - name: Zip artifact for deployment
-        run: zip next.zip ./* .next -qr
+          npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Run tests (if present)
+        run: npm run test --if-present
+
+      - name: Create deployment package
+        run: |
+          # Create a clean deployment directory
+          mkdir deployment-package
+          
+          # Copy necessary files for production
+          cp -r .next deployment-package/
+          cp -r public deployment-package/ 2>/dev/null || true
+          cp package*.json deployment-package/
+          cp next.config.* deployment-package/ 2>/dev/null || true
+          
+          # Copy Prisma files if they exist
+          cp -r prisma deployment-package/ 2>/dev/null || true
+          
+          # Create a production-only package.json in deployment
+          cd deployment-package
+          
+          # Install only production dependencies
+          npm ci --only=production --legacy-peer-deps
+          
+          # Generate Prisma client for production
+          npx prisma generate 2>/dev/null || true
+          
+          # Create the zip file
+          zip -r ../release.zip .
+
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
@@ -48,8 +79,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
