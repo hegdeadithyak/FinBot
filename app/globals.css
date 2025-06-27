@@ -8,7 +8,7 @@
 @tailwind components;
 @tailwind utilities;
 html {
-  font-family: var(--font-inter), sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 @layer base {

@@ -42,7 +42,7 @@ model User {
   bankingProfiles   BankingProfile[]
   
   @@map("users")
-  Memory Memory[]
+  memories Memory[]
 }
 
 model Session {
