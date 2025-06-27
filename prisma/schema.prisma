@@ -28,18 +28,13 @@ model User {
   theme             String    @default("dark")
   searchResults       SearchResult[]
   retrievalAnalytics  RetrievalAnalytics[]
-  
-  // Banking specific fields
   accountNumber     String?
   bankBranch        String?
   customerType      String?   // individual, business, premium
   kycStatus         String    @default("pending") // pending, verified, rejected
-  
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   lastLoginAt       DateTime?
-  
-  // Relations
   sessions          Session[]
   chatSessions      ChatSession[]
   messages          Message[]
@@ -47,6 +42,7 @@ model User {
   bankingProfiles   BankingProfile[]
   
   @@map("users")
+  Memory Memory[]
 }
 
 model Session {
