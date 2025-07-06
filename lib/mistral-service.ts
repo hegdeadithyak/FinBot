@@ -87,41 +87,6 @@ export class MistralService {
     }
   }
 
-  // Stream chat completion
-  async *streamResponse(
-    messages: ChatMessage[],
-    options: {
-      temperature?: number
-      maxTokens?: number
-      topP?: number
-    } = {},
-  ): AsyncGenerator<string, void, unknown> {
-    try {
-      const { temperature = 0.7, maxTokens = 2000, topP = 1.0 } = options
-
-      const stream = await this.client.chat.stream({
-        model: this.model,
-        messages: messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        temperature,
-        maxTokens,
-        topP,
-      })
-
-      for await (const chunk of stream) {
-        const content = chunk.choices?.[0]?.delta?.content
-        if (content) {
-          yield content
-        }
-      }
-    } catch (error) {
-      console.error("Mistral streaming error:", error)
-      throw new Error("Failed to stream response from Mistral")
-    }
-  }
-
   // Generate response with sources
   async generateResponseWithSources(
     query: string,
@@ -162,84 +127,111 @@ export class MistralService {
     }
   }
 
-  // Build system prompt with sources
-  private buildSystemPromptWithSources(context: any, userProfile: any): string {
-    let prompt = `You are FinBot, an intelligent banking assistant. You have access to multiple knowledge sources and should provide accurate, helpful responses with proper source citations.
+ private buildSystemPromptWithSources(context: any, userProfile: any): string {
+  /* ────────────────────────────────────────────────────────────── */
+  /* 1. Header – role & user profile                               */
+  /* ────────────────────────────────────────────────────────────── */
+  let prompt = `You are FinBot – a multilingual, intelligent banking assistant.
+Answer clearly, securely, and with context. Use the knowledge sources below,
+weighted in the order **Memories → Banking Data → Documents → Web**.
 
 User Profile:
 - Name: ${userProfile.firstName || "User"}
 - Preferred Language: ${userProfile.preferredLanguage || "English"}
 
-AVAILABLE CONTEXT AND SOURCES:
-`
+AVAILABLE CONTEXT AND SOURCES:`;
 
-    // Add web search results
-    if (context.webResults && context.webResults.length > 0) {
-      prompt += `\nWEB SEARCH RESULTS:\n`
-      context.webResults.forEach((result: any, index: number) => {
-        prompt += `[${index + 1}] ${result.title}\n`
-        prompt += `    ${result.snippet}\n`
-        prompt += `    Source: ${result.link}\n\n`
-      })
-    }
+  /* ────────────────────────────────────────────────────────────── */
+  /* 2. Memories (highest priority)                                */
+  /* ────────────────────────────────────────────────────────────── */
+ prompt += context.memoryResults;
+  // if (context.memoryResults && context.memoryResults.length > 0) {
+  //   prompt += `\nMEMORIES (highest‑priority):\n`;
 
-    // Add vector search results if available
-    if (context.vectorResults && context.vectorResults.length > 0) {
-      prompt += `\nDOCUMENT SEARCH RESULTS:\n`
-      context.vectorResults.forEach((result: any, index: number) => {
-        prompt += `[V${index + 1}] ${result.content.substring(0, 300)}...\n`
-        prompt += `    Relevance: ${(result.score * 100).toFixed(1)}%\n\n`
-      })
-    }
+  //   const memories = Array.isArray(context.memoryResults)
+  //     ? context.memoryResults
+  //     : [context.memoryResults];
 
-    // Add banking data if available
-    if (context.bankingData && context.bankingData.length > 0) {
-      prompt += `\nUSER BANKING DATA:\n`
-      context.bankingData.forEach((data: any, index: number) => {
-        if (data.type === "account_info") {
-          prompt += `[B${index + 1}] Account: ${data.accountType} - Balance: ${data.balance} ${data.currency}\n`
-        } else if (data.type === "transaction") {
-          prompt += `[B${index + 1}] Transaction: ${data.description} - ${data.amount} ${data.currency} (${data.transactionDate})\n`
-        }
-      })
-    }
+  //   memories.forEach((mem: any, idx: number) => {
+  //     const text = typeof mem === "string"
+  //       ? mem
+  //       : (mem.content?.[0]?.text as string | undefined) ?? "";
 
-    console.log(`Built system prompt with ${context.webResults?.length || 0} web results`)
+  //     prompt += `[M${idx + 1}] ${text.slice(0, 300)}...\n`;
+  //   });
+  // }
 
-    prompt += `\nINSTRUCTIONS:
-1. Use the provided context to answer the user's question accurately
-2. ALWAYS cite your sources using the reference numbers (e.g., [1],[2],[3]) so with links 
-    formatted for library react-markdown
-3. If using web sources, mention the website name
-4. Prioritize user's personal data (V, M, B sources) over web sources
-5. If information is uncertain or conflicting, mention this clearly
-6. Respond in ${userProfile.preferredLanguage || "English"} if it's not English
-7. For financial advice, always recommend consulting with financial professionals
-8. Be conversational but professional
-9. If you cannot find relevant information in the sources, say so clearly
-
-Remember to cite sources in your response using the reference numbers provided above.`
-
-    return prompt
+  /* ────────────────────────────────────────────────────────────── */
+  /* 3. Banking data (second)                                      */
+  /* ────────────────────────────────────────────────────────────── */
+  if (context.bankingData && context.bankingData.length > 0) {
+    prompt += `\nUSER BANKING DATA:\n`;
+    context.bankingData.forEach((data: any, index: number) => {
+      if (data.type === "account_info") {
+        prompt += `[B${index + 1}] Account: ${data.accountType} – Balance: ${data.balance} ${data.currency}\n`;
+      } else if (data.type === "transaction") {
+        prompt += `[B${index + 1}] Transaction: ${data.description} – ${data.amount} ${data.currency} (${data.transactionDate})\n`;
+      }
+    });
   }
+
+  /* ────────────────────────────────────────────────────────────── */
+  /* 4. Vector / internal docs (third)                             */
+  /* ────────────────────────────────────────────────────────────── */
+  if (context.vectorResults && context.vectorResults.length > 0) {
+    prompt += `\nDOCUMENT SEARCH RESULTS:\n`;
+    context.vectorResults.forEach((result: any, index: number) => {
+      prompt += `[V${index + 1}] ${result.content.substring(0, 300)}...\n`;
+      prompt += `    Relevance: ${(result.score * 100).toFixed(1)}%\n\n`;
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────────── */
+  /* 5. Web results (lowest priority)                              */
+  /* ────────────────────────────────────────────────────────────── */
+  if (context.webResults && context.webResults.length > 0) {
+    prompt += `\nWEB SEARCH RESULTS:\n`;
+    context.webResults.forEach((result: any, index: number) => {
+      prompt += `[W${index + 1}] ${result.title}\n`;
+      prompt += `    ${result.snippet}\n`;
+      prompt += `    Source: ${result.link}\n\n`;
+    });
+  }
+
+  prompt += `\nINSTRUCTIONS – How to answer:\n` +
+    `1. Focus on the user's current question first.\n` +
+    `2. Weave in information from sources in priority order **M → B → V → W**.\n` +
+    `3. If sources conflict, prefer the higher‑priority one, but mention the conflict.\n` +
+    `5. Use clear, user‑friendly language in ${userProfile.preferredLanguage || "English"}.\n` +
+    `7. Provide a friendly closing line.\n\n` +
+    `Only expose the actual memory text if the user explicitly asks "What do you remember? or something about memory"`;
+
+  return prompt;
+}
+
 
   // Extract and format sources
   private extractSources(context: any): any[] {
     const sources: any[] = []
+    // In extractSources()
+    console.log(context);
+    if (context.memoryResults) {
+      const memoryArr: Array<{ content: string; timestamp?: string }> =
+        Array.isArray(context.memoryResults)
+          ? context.memoryResults
+          : [{ content: String(context.memoryResults) }];
 
-    // // Add vector sources
-    // if (context.vectorResults) {
-    //   context.vectorResults.forEach((result: any, index: number) => {
-    //     sources.push({
-    //       id: `V${index + 1}`,
-    //       type: "document",
-    //       title: result.metadata?.title || "Personal Document",
-    //       content: result.content.substring(0, 200) + "...",
-    //       relevance: result.score,
-    //       url: result.metadata?.url || null,
-    //     })
-    //   })
-    // }
+      memoryArr.forEach((mem, i) => {
+        sources.push({
+          id: `M${i + 1}`,
+          type: "memory",
+          title: "Prior Conversation",
+          content: mem.content.slice(0, 200) + "...",
+          timestamp: mem.timestamp ?? null,
+        });
+      });
+    }
+
 
     // Add web sources
     if (context.webResults) {

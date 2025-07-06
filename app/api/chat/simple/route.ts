@@ -3,89 +3,124 @@
  * @Date:   2025-06-04
  * @Last Modified by:   Adithya
  * @Last Modified time: 2025-07-06
+ *
+ * Enhanced chat endpoint with per‑user Mem0 memory integration and
+ * Prisma‑backed user‑ID resolution.
  */
-import { type NextRequest, NextResponse } from "next/server"
-import { MistralService } from "@/lib/mistral-service"
-import { SerpService } from "@/lib/serp-service"
+
+import { NextRequest, NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
+import { MistralService } from "@/lib/mistral-service";
+import { SerpService } from "@/lib/serp-service";
+import { persist, recall } from "@/lib/mem0-service";
+
+const prisma = new PrismaClient();
 
 const mistralService = new MistralService({
-  apiKey: process.env.MISTRAL_API_KEY || "6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ",
-  model: "mistral-large-latest",
-})
+  apiKey: process.env.MISTRAL_API_KEY ?? "6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ",
+});
 
-const serpService = new SerpService()
+const serpService = new SerpService();
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, userProfile, enableWebSearch = true } = await request.json()
+    const { messages, userProfile, enableWebSearch = false} = await request.json();
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json({ error: "'messages' array is required and cannot be empty." }, { status: 400 })
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: "'messages' array is required and cannot be empty." },
+        { status: 400 }
+      );
     }
 
-    // Get the latest user message for search
-    const lastUserMessage = messages.filter((m: any) => m.role === "user").pop()
-    if (!lastUserMessage) {
-      return NextResponse.json({ error: "No user message found" }, { status: 400 })
-    }
-
-    const query = lastUserMessage.content
-    let webResults: any[] = []
-
-    // Perform web search if enabled and SERP API key is available
-    if (true) {
+    // ────────────────────────────────────────────────────────────────────────────────
+    // 1. Resolve the caller's ID via Prisma
+    // ────────────────────────────────────────────────────────────────────────────────
+    let userId = "anonymous";
+    if (userProfile?.email) {
       try {
-        console.log(`Performing web search for: "${query}"`)
-
-        // Determine if this is a banking-related query
-        const isBankingQuery =true;
-
-        if (isBankingQuery) {
-          webResults = await serpService.searchBanking(query)
-        } else {
-          webResults = await serpService.search(query, { num: 6 })
-        }
-
-        console.log(`Found ${webResults.length} web search results`)
-        console.log(webResults);
-      } catch (searchError) {
-        console.error("Web search failed:", searchError)
-        // Continue without web results if search fails
+        const user = await prisma.user.findUnique({
+          where: { email: userProfile.email },
+          select: { id: true },
+        });
+        if (user?.id) userId = user.id;
+      } catch (dbErr) {
+        console.error("Prisma lookup failed:", dbErr);
       }
     }
 
-    // Build context for enhanced response
+    // ────────────────────────────────────────────────────────────────────────────────
+    // 2. Persist the latest conversation turn & recall salient memories
+    // ────────────────────────────────────────────────────────────────────────────────
+    let memoryResults: any[] = [];
+    try {
+      await persist(messages, userId);
+      memoryResults = await recall(messages, userId);
+    } catch (memErr) {
+      console.error("Mem0 memory error:", memErr);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────
+    // 3. Optional web search (SERP)
+    // ────────────────────────────────────────────────────────────────────────────────
+    const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
+    if (!lastUserMessage) {
+      return NextResponse.json({ error: "No user message found" }, { status: 400 });
+    }
+
+    const query: string = lastUserMessage.content;
+    let webResults: any[] = [];
+
+    if (enableWebSearch) {
+      try {
+        const isBankingQuery = true; // TODO: plug‑in a classifier if needed
+        webResults = isBankingQuery
+          ? await serpService.searchBanking(query)
+          : await serpService.search(query, { num: 6 });
+      } catch (searchErr) {
+        console.error("Web search failed:", searchErr);
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────────
+    // 4. Compose cross‑source context for the LLM
+    // ────────────────────────────────────────────────────────────────────────────────
     const context = {
-      vectorResults: [], // Can be populated with vector search results
+      vectorResults: [], // add PGVector / Pinecone hits here later
       webResults,
-      memoryResults: [], // Can be populated with conversation history
-      bankingData: [], // Can be populated with user's banking data
-    }
+      memoryResults,
+      bankingData: [],
+    };
 
-    // Default user profile
-    const profile = userProfile || {
-      firstName: "User",
-      preferredLanguage: "English",
-    }
+    const profile = {
+      firstName: userProfile?.firstName ?? "User",
+      preferredLanguage: userProfile?.preferredLanguage ?? "English",
+    };
 
-    // Generate enhanced response with sources
-    const result = await mistralService.generateResponseWithSources(query, context, profile)
-    
+    // ────────────────────────────────────────────────────────────────────────────────
+    // 5. Generate the answer with Mistral + Mem0 memories
+    // ────────────────────────────────────────────────────────────────────────────────
+    const { content, sources } = await mistralService.generateResponseWithSources(
+      query,
+      context,
+      profile
+    );
+
     return NextResponse.json({
-      response: result.content,
-      sources: result.sources,
-      webSearchEnabled: true,
+      response: content,
+      sources,
+      memoryHits: memoryResults.length,
       searchResultsCount: webResults.length,
       timestamp: new Date().toISOString(),
-    })
+    });
   } catch (error: any) {
-    console.error("Enhanced chat error:", error)
+    console.error("Enhanced chat error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to generate enhanced response",
+        error: error.message ?? "Failed to generate enhanced response",
         details: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }
