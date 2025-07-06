@@ -1,70 +1,72 @@
 /**
  * @Author: Adithya
- * @Date:   2025-06-02
+ * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-07-07
  */
-import { type NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/auth"
-import { z } from "zod"
+/**
+ * POST /api/auth/register
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { AuthService, makeCookie } from "@/lib/auth-service";   // makeCookie encodes finbot_session
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 
 const registerSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email:    z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  username: z.string().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  username:          z.string().optional(),
+  firstName:         z.string().optional(),
+  lastName:          z.string().optional(),
   preferredLanguage: z.string().optional(),
-})
+});
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
+    /* 1️⃣ validate input */
+    const data = registerSchema.parse(await req.json());
 
-    // Validate input
-    const validatedData = registerSchema.parse(body)
+    /* 2️⃣ register user (returns { user, token }) */
+    const { user, token } = await AuthService.register(data);
 
-    // Register user
-    const result = await AuthService.register(validatedData)
+    /* 3️⃣ merge guest sessions/messages if visitor UID exists */
+    const guestId =
+      req.headers.get("x-finbot-uid") ??
+      req.cookies.get("finbot_uid")?.value ??
+      null;
 
-    // Set session cookie
-    const response = NextResponse.json(
-      {
-        success: true,
-        user: result.user,
-        message: "User registered successfully",
-      },
-      { status: 201 },
-    )
+    if (guestId && guestId !== user.id) {
+      await prisma.$transaction([
+        prisma.chatSession.updateMany({
+          where: { userId: guestId },
+          data:  { userId: user.id },
+        }),
+        prisma.message.updateMany({
+          where: { userId: guestId },
+          data:  { userId: user.id },
+        }),
+      ]);
+    }
 
-    response.cookies.set("session-token", result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    })
+    /* 4️⃣ build response with Set-Cookie */
+    const res = NextResponse.json({ user }, { status: 201 });
+    res.cookies.set(makeCookie(token));           // finbot_session
+    res.cookies.delete("session-token");          // clean up legacy cookie
+    return res;
+  } catch (err) {
+    console.error("Registration error:", err);
 
-    return response
-  } catch (error) {
-    console.error("Registration error:", error)
-
-    if (error instanceof z.ZodError) {
+    if (err instanceof z.ZodError) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Validation error",
-          errors: error.errors,
-        },
+        { error: "Validation error", details: err.errors },
         { status: 400 },
-      )
+      );
     }
 
     return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : "Registration failed",
-      },
+      { error: err instanceof Error ? err.message : "Registration failed" },
       { status: 400 },
-    )
+    );
   }
 }

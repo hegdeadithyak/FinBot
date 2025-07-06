@@ -2,16 +2,53 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-07-06
  */
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { prisma } from "./prisma"
 import type { Session } from "inspector/promises"
 
-  
+
+import { cookies, headers } from "next/headers";
+// import {  AuthService , AuthUser } from "@/lib/auth-service";
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"
+
+
+export interface AuthResult {
+  user: AuthUser;
+  sessionToken: string;
+}
+
+async function extractToken(): Promise<string | null> {
+  const hdrs = await headers();
+  const authHeader = hdrs.get("authorization") || hdrs.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+
+  const cookieStore = await cookies();
+  const cookieToken = cookieStore.get("finbot_session")?.value;
+  return cookieToken ?? null;
+}
+export async function auth(): Promise<AuthResult | null> {
+  const token = await extractToken();
+  if (!token) return null;
+  if (!token) return null;
+
+  const decoded = AuthService.verifyToken(token);
+  if (!decoded) return null;
+
+  const dbSession = await prisma.session.findUnique({ where: { sessionToken: token } });
+  if (!dbSession || !dbSession.isActive || dbSession.expires < new Date()) return null;
+
+  const authUser = await AuthService.getUserBySession(token);
+  if (!authUser) return null;
+
+  return { user: authUser, sessionToken: token };
+}
+
 
 export interface AuthUser {
   id: string
@@ -67,9 +104,7 @@ export class AuthService {
     }
   }
 
-  // Register new user
-  static async register(data: RegisterData): Promise<{ user: AuthUser; token: string; session: Session }> {
-    // Check if user already exists
+  static async register(data: RegisterData): Promise<{ user: AuthUser; token: string}> {
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     })
@@ -78,7 +113,6 @@ export class AuthService {
       throw new Error("User already exists with this email")
     }
 
-    // Check username if provided
     if (data.username) {
       const existingUsername = await prisma.user.findUnique({
         where: { username: data.username },
@@ -89,10 +123,8 @@ export class AuthService {
       }
     }
 
-    // Hash password
     const passwordHash = await this.hashPassword(data.password)
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -105,10 +137,8 @@ export class AuthService {
       },
     })
 
-    // Generate token
     const token = this.generateToken(user.id)
 
-    // Create session
     const session = await prisma.session.create({
       data: {
         userId: user.id,
@@ -129,18 +159,16 @@ export class AuthService {
       theme: user.theme,
     }
 
-    return { user: authUser, token, session }
+    return { user: authUser, token }
   }
 
-  // Login user
   static async login(
     credentials: LoginCredentials,
     ipAddress?: string,
     userAgent?: string,
 
-): Promise<{ user: AuthUser; token: string; session: Session }> {
+): Promise<{ user: AuthUser; token: string}> {
 
-    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email: credentials.email },
     })
@@ -149,32 +177,20 @@ export class AuthService {
       throw new Error("Invalid email or password")
     }
 
-    // Verify password
     const isValidPassword = await this.verifyPassword(credentials.password, user.passwordHash)
 
     if (!isValidPassword) {
       throw new Error("Invalid email or password")
     }
 
-    // Update last login
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     })
 
-    // Generate token
     const token = this.generateToken(user.id)
 
-    // Create session
-    const session = await prisma.session.create({
-      data: {
-        userId: user.id,
-        sessionToken: token,
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        ipAddress,
-        userAgent,
-      },
-    })
+    
 
     const authUser: AuthUser = {
       id: user.id,
@@ -188,10 +204,9 @@ export class AuthService {
       theme: user.theme,
     }
 
-    return { user: authUser, token, session }
+    return { user: authUser, token}
   }
 
-  // Logout user
   static async logout(sessionToken: string): Promise<void> {
     await prisma.session.update({
       where: { sessionToken },
@@ -199,7 +214,6 @@ export class AuthService {
     })
   }
 
-  // Logout all sessions for user
   static async logoutAll(userId: string): Promise<void> {
     await prisma.session.updateMany({
       where: { userId },
@@ -207,7 +221,6 @@ export class AuthService {
     })
   }
 
-  // Get user by session token
   static async getUserBySession(sessionToken: string): Promise<AuthUser | null> {
     const session = await prisma.session.findUnique({
       where: { sessionToken },
@@ -233,8 +246,7 @@ export class AuthService {
     }
   }
 
-  // Refresh session
-  static async refreshSession(sessionToken: string): Promise<Session | null> {
+  static async refreshSession(sessionToken: string) {
     const session = await prisma.session.findUnique({
       where: { sessionToken },
     })
@@ -243,7 +255,6 @@ export class AuthService {
       return null
     }
 
-    // Extend session by 7 days
     const updatedSession = await prisma.session.update({
       where: { sessionToken },
       data: {
@@ -254,7 +265,6 @@ export class AuthService {
     return updatedSession
   }
 
-  // Clean expired sessions
   static async cleanExpiredSessions(): Promise<void> {
     await prisma.session.deleteMany({
       where: {

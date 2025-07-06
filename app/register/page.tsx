@@ -2,23 +2,33 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-06
+ * @Last Modified time: 2025-07-07
  */
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { Eye, EyeOff, Mail, Lock, User, Bot, ArrowRight, Loader2, Globe } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  User,
+  Bot,
+  ArrowRight,
+  Loader2,
+  Globe,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -27,9 +37,9 @@ export default function RegisterPage() {
     lastName: "",
     username: "",
     preferredLanguage: "English",
-  })
+  });
 
-  const router = useRouter()
+  const router = useRouter();
 
   const languages = [
     "English",
@@ -42,33 +52,30 @@ export default function RegisterPage() {
     "Arabic",
     "Portuguese",
     "Russian",
-  ]
+  ];
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
-    // Validate passwords match
+    /* client-side checks */
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
-      setIsLoading(false)
-      return
+      setError("Passwords do not match");
+      setIsLoading(false);
+      return;
     }
-
-    // Validate password strength
     if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters long")
-      setIsLoading(false)
-      return
+      setError("Password must be at least 8 characters long");
+      setIsLoading(false);
+      return;
     }
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // ← send + receive cookies (finbot_uid + finbot_session)
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
@@ -77,28 +84,32 @@ export default function RegisterPage() {
           username: formData.username,
           preferredLanguage: formData.preferredLanguage,
         }),
-      })
+      });
 
-      const data = await response.json()
-
-      if (data.success) {
-        router.push("/")
-      } else {
-        setError(data.message || "Registration failed")
+      if (!res.ok) {
+        const { error } = await res
+          .json()
+          .catch(() => ({ error: "Registration failed" }));
+        throw new Error(error);
       }
-    } catch (error) {
-      setError("An error occurred. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      /* backend now returns { user } only */
+      router.replace("/"); // or "/" if your landing page is the chat
+    } catch (err: any) {
+      setError(err.message ?? "An error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
-    })
-  }
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -113,12 +124,20 @@ export default function RegisterPage() {
           <motion.div
             className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4"
             animate={{ rotate: [0, 360] }}
-            transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+            transition={{
+              duration: 20,
+              repeat: Number.POSITIVE_INFINITY,
+              ease: "linear",
+            }}
           >
             <Bot className="w-8 h-8 text-primary-foreground" />
           </motion.div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Join FinBot</h1>
-          <p className="text-muted-foreground">Create your intelligent banking assistant account</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Join FinBot
+          </h1>
+          <p className="text-muted-foreground">
+            Create your intelligent banking assistant account
+          </p>
         </motion.div>
 
         {/* Register Form */}
@@ -132,7 +151,10 @@ export default function RegisterPage() {
             {/* Name Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label htmlFor="firstName" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="firstName"
+                  className="text-sm font-medium text-foreground"
+                >
                   First Name
                 </label>
                 <div className="relative">
@@ -150,7 +172,10 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="lastName" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="lastName"
+                  className="text-sm font-medium text-foreground"
+                >
                   Last Name
                 </label>
                 <input
@@ -167,7 +192,10 @@ export default function RegisterPage() {
 
             {/* Username Field */}
             <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="username"
+                className="text-sm font-medium text-foreground"
+              >
                 Username
               </label>
               <input
@@ -183,7 +211,10 @@ export default function RegisterPage() {
 
             {/* Email Field */}
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-foreground"
+              >
                 Email Address
               </label>
               <div className="relative">
@@ -203,7 +234,10 @@ export default function RegisterPage() {
 
             {/* Language Preference */}
             <div className="space-y-2">
-              <label htmlFor="preferredLanguage" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="preferredLanguage"
+                className="text-sm font-medium text-foreground"
+              >
                 Preferred Language
               </label>
               <div className="relative">
@@ -227,7 +261,10 @@ export default function RegisterPage() {
             {/* Password Fields */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-foreground"
+                >
                   Password
                 </label>
                 <div className="relative">
@@ -247,13 +284,20 @@ export default function RegisterPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                <label
+                  htmlFor="confirmPassword"
+                  className="text-sm font-medium text-foreground"
+                >
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -273,7 +317,11 @@ export default function RegisterPage() {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -314,7 +362,10 @@ export default function RegisterPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline font-medium">
+              <Link
+                href="/login"
+                className="text-primary hover:underline font-medium"
+              >
                 Sign in
               </Link>
             </p>
@@ -322,5 +373,5 @@ export default function RegisterPage() {
         </motion.div>
       </div>
     </div>
-  )
+  );
 }

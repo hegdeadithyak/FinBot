@@ -1,54 +1,14 @@
 /**
  * @Author: Adithya
- * @Date:   2025-06-02
+ * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-07-06
  */
-import { type NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/auth"
+import { AuthJWT } from "@/lib/auth-jwt";
+import { NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
-  try {
-    const sessionToken = request.cookies.get("session-token")?.value
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "No session token",
-        },
-        { status: 401 },
-      )
-    }
-
-    const user = await AuthService.getUserBySession(sessionToken)
-
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid or expired session",
-        },
-        { status: 401 },
-      )
-    }
-
-    // Refresh session
-    await AuthService.refreshSession(sessionToken)
-
-    return NextResponse.json({
-      success: true,
-      user,
-    })
-  } catch (error) {
-    console.error("Get user error:", error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to get user",
-      },
-      { status: 500 },
-    )
-  }
+export async function GET(req: Request) {
+  const user = await AuthJWT.auth(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ user }, { status: 200 });
 }

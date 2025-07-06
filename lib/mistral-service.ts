@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-07-06
+ * @Last Modified time: 2025-07-07
  */
 import { Mistral } from "@mistralai/mistralai"
 
@@ -144,26 +144,8 @@ AVAILABLE CONTEXT AND SOURCES:`;
   /* ────────────────────────────────────────────────────────────── */
   /* 2. Memories (highest priority)                                */
   /* ────────────────────────────────────────────────────────────── */
- prompt += context.memoryResults;
-  // if (context.memoryResults && context.memoryResults.length > 0) {
-  //   prompt += `\nMEMORIES (highest‑priority):\n`;
-
-  //   const memories = Array.isArray(context.memoryResults)
-  //     ? context.memoryResults
-  //     : [context.memoryResults];
-
-  //   memories.forEach((mem: any, idx: number) => {
-  //     const text = typeof mem === "string"
-  //       ? mem
-  //       : (mem.content?.[0]?.text as string | undefined) ?? "";
-
-  //     prompt += `[M${idx + 1}] ${text.slice(0, 300)}...\n`;
-  //   });
-  // }
-
-  /* ────────────────────────────────────────────────────────────── */
-  /* 3. Banking data (second)                                      */
-  /* ────────────────────────────────────────────────────────────── */
+   prompt += context.memoryResults;
+  console.log(context.memoryResults);
   if (context.bankingData && context.bankingData.length > 0) {
     prompt += `\nUSER BANKING DATA:\n`;
     context.bankingData.forEach((data: any, index: number) => {
@@ -199,7 +181,7 @@ AVAILABLE CONTEXT AND SOURCES:`;
   }
 
   prompt += `\nINSTRUCTIONS – How to answer:\n` +
-    `1. Focus on the user's current question first.\n` +
+    `1. Focus on the user's current question first.\n and focus on names and users memories above.` +
     `2. Weave in information from sources in priority order **M → B → V → W**.\n` +
     `3. If sources conflict, prefer the higher‑priority one, but mention the conflict.\n` +
     `5. Use clear, user‑friendly language in ${userProfile.preferredLanguage || "English"}.\n` +
@@ -220,15 +202,12 @@ AVAILABLE CONTEXT AND SOURCES:`;
         Array.isArray(context.memoryResults)
           ? context.memoryResults
           : [{ content: String(context.memoryResults) }];
-
-      memoryArr.forEach((mem, i) => {
-        sources.push({
-          id: `M${i + 1}`,
-          type: "memory",
-          title: "Prior Conversation",
-          content: mem.content.slice(0, 200) + "...",
-          timestamp: mem.timestamp ?? null,
-        });
+      
+      const memoryContent = memoryArr.map(m => typeof m === "string" ? m : m.content).join(" ");
+      sources.push({
+        type: "memory",
+        title: "Memories",
+        content: memoryContent,
       });
     }
 

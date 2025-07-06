@@ -1,136 +1,95 @@
 /**
  * @Author: Adithya
- * @Date:   2025-06-02
+ * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-02
+ * @Last Modified time: 2025-07-07
  */
-import { type NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+/**
+ * GET  /api/chat/sessions   – list recent chats
+ * POST /api/chat/sessions   – create a new chat
+ */
 
-export async function GET(request: NextRequest) {
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { AuthJWT } from "@/lib/auth-jwt";     // stateless helper
+
+/* ────────────────────────────────────────────────────────────────── */
+/* 1️⃣  Resolve the owner ID (logged-in user or guest UID)           */
+/* ────────────────────────────────────────────────────────────────── */
+async function ownerId(req: NextRequest): Promise<string | null> {
+  const user = await AuthJWT.auth(req);
+  if (user) return user.id;
+
+  return (
+    req.headers.get("x-finbot-uid") ??
+    req.cookies.get("finbot_uid")?.value ??
+    null
+  );
+}
+
+/* ═════════════════════════════════════════════════════════════════ */
+/*  GET  – list chat sessions                                        */
+/* ═════════════════════════════════════════════════════════════════ */
+export async function GET(req: NextRequest) {
   try {
-    // Authenticate user
-    const sessionToken = request.cookies.get("session-token")?.value
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Authentication required",
-        },
-        { status: 401 },
-      )
+    const uid = await ownerId(req);
+    if (!uid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await AuthService.getUserBySession(sessionToken)
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid session",
-        },
-        { status: 401 },
-      )
-    }
-
-    // Get user's chat sessions
-    const chatSessions = await prisma.chatSession.findMany({
-      where: {
-        userId: user.id,
-        isActive: true,
-      },
-      include: {
-        messages: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
+    const sessions = await prisma.chatSession.findMany({
+      where: { userId: uid },
       orderBy: { updatedAt: "desc" },
-    })
-
-    const formattedSessions = chatSessions.map((session:any) => ({
-      id: session.id,
-      title: session.title,
-      summary: session.summary,
-      language: session.language,
-      messageCount: session._count.messages,
-      lastMessage: session.messages[0]?.content?.substring(0, 100) + "..." || "",
-      createdAt: session.createdAt,
-      updatedAt: session.updatedAt,
-    }))
-
-    return NextResponse.json({
-      success: true,
-      sessions: formattedSessions,
-    })
-  } catch (error) {
-    console.error("Get chat sessions error:", error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to get chat sessions",
+      include: {
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        _count:   { select: { messages: true } },
       },
+    });
+
+    const payload = sessions.map((s) => ({
+      id:           s.id,
+      title:        s.title ?? "Untitled chat",
+      messageCount: s._count.messages,
+      lastMessage:  s.messages[0]?.content.slice(0, 100) ?? "",
+      createdAt:    s.createdAt,
+      updatedAt:    s.updatedAt,
+    }));
+
+    return NextResponse.json({ sessions: payload }, { status: 200 });
+  } catch (err) {
+    console.error("GET chat sessions error:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch chat sessions" },
       { status: 500 },
-    )
+    );
   }
 }
 
-export async function POST(request: NextRequest) {
+/* ═════════════════════════════════════════════════════════════════ */
+/*  POST – create a new chat                                         */
+/* ═════════════════════════════════════════════════════════════════ */
+export async function POST(req: NextRequest) {
   try {
-    // Authenticate user
-    const sessionToken = request.cookies.get("session-token")?.value
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Authentication required",
-        },
-        { status: 401 },
-      )
+    const uid = await ownerId(req);
+    if (!uid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await AuthService.getUserBySession(sessionToken)
-    if (!user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid session",
-        },
-        { status: 401 },
-      )
-    }
+    const { title, language } = await req.json();
 
-    const { title, language } = await request.json()
-
-    // Create new chat session
-    const chatSession = await prisma.chatSession.create({
+    const session = await prisma.chatSession.create({
       data: {
-        userId: user.id,
-        title: title || "New Chat",
-        language: language || user.preferredLanguage,
+        userId:  uid,
+        title:   title ?? "New chat",
       },
-    })
+    });
 
+    return NextResponse.json({ session }, { status: 201 });
+  } catch (err) {
+    console.error("Create chat session error:", err);
     return NextResponse.json(
-      {
-        success: true,
-        session: chatSession,
-      },
-      { status: 201 },
-    )
-  } catch (error) {
-    console.error("Create chat session error:", error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Failed to create chat session",
-      },
+      { error: "Failed to create chat session" },
       { status: 500 },
-    )
+    );
   }
 }

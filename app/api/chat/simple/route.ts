@@ -1,126 +1,120 @@
 /**
  * @Author: Adithya
- * @Date:   2025-06-04
+ * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-07-06
- *
- * Enhanced chat endpoint with per‑user Mem0 memory integration and
- * Prisma‑backed user‑ID resolution.
+ * @Last Modified time: 2025-07-07
+ */
+/**
+ * Enhanced Chat endpoint
+ * Path: app/api/chat/simple/route.ts
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, MessageRole } from "@prisma/client";
+import { persist, recall, recallAll } from "@/lib/mem0-service";
+import { getOrCreateChat, saveMsg } from "@/lib/chat-store";
 import { MistralService } from "@/lib/mistral-service";
 import { SerpService } from "@/lib/serp-service";
-import { persist, recall } from "@/lib/mem0-service";
+import { ownerId } from "@/lib/owner-id";
 
 const prisma = new PrismaClient();
-
-const mistralService = new MistralService({
+const mistral = new MistralService({
   apiKey: process.env.MISTRAL_API_KEY ?? "6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ",
 });
+const serp = new SerpService();
 
-const serpService = new SerpService();
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { messages, userProfile, enableWebSearch = false} = await request.json();
+    /* ── 0. Parse body ──────────────────────────────── */
+    const {
+      messages,
+      chatSessionId,               // optional
+      userProfile = {},
+      enableWebSearch = false,
+    } = await req.json();
 
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (!Array.isArray(messages) || messages.length === 0)
       return NextResponse.json(
         { error: "'messages' array is required and cannot be empty." },
-        { status: 400 }
+        { status: 400 },
       );
-    }
 
-    // ────────────────────────────────────────────────────────────────────────────────
-    // 1. Resolve the caller's ID via Prisma
-    // ────────────────────────────────────────────────────────────────────────────────
-    let userId = "anonymous";
-    if (userProfile?.email) {
-      try {
-        const user = await prisma.user.findUnique({
-          where: { email: userProfile.email },
-          select: { id: true },
-        });
-        if (user?.id) userId = user.id;
-      } catch (dbErr) {
-        console.error("Prisma lookup failed:", dbErr);
-      }
-    }
+    let userId = ownerId(req);
+    /* ── 2. Ensure ChatSession row ───────────────────── */
+    const chat = await getOrCreateChat(userId, chatSessionId);
 
-    // ────────────────────────────────────────────────────────────────────────────────
-    // 2. Persist the latest conversation turn & recall salient memories
-    // ────────────────────────────────────────────────────────────────────────────────
-    let memoryResults: any[] = [];
-    try {
-      await persist(messages, userId);
-      memoryResults = await recall(messages, userId);
-    } catch (memErr) {
-      console.error("Mem0 memory error:", memErr);
+    /* ── 3. Persist USER message (DB & Mem0) ─────────── */
+    const lastUser = messages.at(-1);
+    if (!lastUser || lastUser.role !== "user") {
+      return NextResponse.json({ error: "Last message must be from user." }, { status: 400 });
     }
+    await saveMsg(chat.id, userId, MessageRole.USER, lastUser.content);
+    await persist(messages, userId);               // Mem0 write
 
-    // ────────────────────────────────────────────────────────────────────────────────
-    // 3. Optional web search (SERP)
-    // ────────────────────────────────────────────────────────────────────────────────
-    const lastUserMessage = messages.filter((m: any) => m.role === "user").pop();
-    if (!lastUserMessage) {
-      return NextResponse.json({ error: "No user message found" }, { status: 400 });
-    }
+    /* ── 4. Recall memories ─────────────────────────── */
+    console.log(userId);
+    const memoryResults = await recall(messages, userId).catch((err) => {
+      
+      console.error("Mem0 recall:", err);
+      return [];
+    });
 
-    const query: string = lastUserMessage.content;
+    /* ── 5. Optional SERP search ────────────────────── */
+    const query = lastUser.content;
     let webResults: any[] = [];
-
     if (enableWebSearch) {
       try {
-        const isBankingQuery = true; // TODO: plug‑in a classifier if needed
-        webResults = isBankingQuery
-          ? await serpService.searchBanking(query)
-          : await serpService.search(query, { num: 6 });
-      } catch (searchErr) {
-        console.error("Web search failed:", searchErr);
+        const isBanking = true;                    // placeholder classifier
+        webResults = isBanking
+          ? await serp.searchBanking(query)
+          : await serp.search(query, { num: 6 });
+      } catch (e) {
+        console.error("SERP error:", e);
       }
     }
 
-    // ────────────────────────────────────────────────────────────────────────────────
-    // 4. Compose cross‑source context for the LLM
-    // ────────────────────────────────────────────────────────────────────────────────
+    /* ── 6. Build context & profile ─────────────────── */
     const context = {
-      vectorResults: [], // add PGVector / Pinecone hits here later
+      vectorResults: [],
       webResults,
-      memoryResults,
+      memoryResults:memoryResults,
       bankingData: [],
     };
-
     const profile = {
-      firstName: userProfile?.firstName ?? "User",
-      preferredLanguage: userProfile?.preferredLanguage ?? "English",
+      firstName: userProfile.firstName ?? "User",
+      preferredLanguage: userProfile.preferredLanguage ?? "English",
     };
 
-    // ────────────────────────────────────────────────────────────────────────────────
-    // 5. Generate the answer with Mistral + Mem0 memories
-    // ────────────────────────────────────────────────────────────────────────────────
-    const { content, sources } = await mistralService.generateResponseWithSources(
+    /* ── 7. Generate assistant reply ─────────────────── */
+    const { content, sources } = await mistral.generateResponseWithSources(
       query,
       context,
-      profile
+      profile,
     );
 
-    return NextResponse.json({
-      response: content,
-      sources,
-      memoryHits: memoryResults.length,
-      searchResultsCount: webResults.length,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    console.error("Enhanced chat error:", error);
+    /* ── 8. Save ASSISTANT message ───────────────────── */
+    await saveMsg(chat.id, userId, MessageRole.ASSISTANT, content);
+
+    /* ── 9. Return to client ─────────────────────────── */
     return NextResponse.json(
       {
-        error: error.message ?? "Failed to generate enhanced response",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        chatSessionId: chat.id,
+        response: content,
+        sources,
+        memoryHits: memoryResults.length,
+        searchResultsCount: webResults.length,
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      { status: 200 },
+    );
+  } catch (err: any) {
+    console.error("Chat route error:", err);
+    return NextResponse.json(
+      {
+        error: err.message ?? "Internal server error",
+        details: process.env.NODE_ENV === "development" ? err.stack : undefined,
+      },
+      { status: 500 },
     );
   }
 }

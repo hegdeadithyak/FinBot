@@ -1,63 +1,20 @@
 /**
  * @Author: Adithya
- * @Date:   2025-06-02
+ * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-09
+ * @Last Modified time: 2025-07-06
  */
-import { type NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/auth"
-import { z } from "zod"
+import { AuthJWT, makeCookie } from "@/lib/auth-jwt";
 
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-})
-
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
+  const body = await req.json();
   try {
-    const body = await request.json()
-
-    const validatedData = loginSchema.parse(body)
-
-    const ipAddress = request.ip || request.headers.get("x-forwarded-for") || "unknown";
-    const userAgent = request.headers.get("user-agent") || "unknown"
-
-    const result = await AuthService.login(validatedData, ipAddress, userAgent)
-
-    const response = NextResponse.json({
-      success: true,
-      user: result.user,
-      message: "Login successful",
-    })
-
-    response.cookies.set("session-token", result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    })
-
-    return response
-  } catch (error) {
-    console.error("Login error:", error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Validation error",
-          errors: error.errors,
-        },
-        { status: 400 },
-      )
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : "Login failed",
-      },
-      { status: 401 },
-    )
+    const { user, token } = await AuthJWT.login(body);
+    return new Response(JSON.stringify({ user }), {
+      status: 200,
+      headers: { "Set-Cookie": makeCookie(token), "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 401 });
   }
 }

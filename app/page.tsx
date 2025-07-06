@@ -1,53 +1,73 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { ChatBlogLayout } from "@/components/chat-blog-layout"
-import { Zap, MessageSquare, Brain, Shield, Sparkles, ArrowRight, Bot, TrendingUp, Star } from "lucide-react"
-import Link from "next/link"
-import { Sidebar } from "@/components/sidebar"
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ChatBlogLayout } from "@/components/chat-blog-layout";
+import { useRouter } from "next/navigation";
+import {
+  Zap,
+  MessageSquare,
+  Brain,
+  Shield,
+  Sparkles,
+  ArrowRight,
+  Bot,
+  TrendingUp,
+  Star,
+} from "lucide-react";
+import Link from "next/link";
+import { Sidebar } from "@/components/sidebar";
 
 interface User {
-  id: string
-  email: string
-  name: string
-  preferredLanguage: string
+  id: string;
+  email: string;
+  name: string;
+  preferredLanguage: string;
 }
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null)
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
 
-  // Check authentication status on component mount
+  const router = useRouter();
   useEffect(() => {
-    const checkAuth = async () => {
+    let active = true; // 🛑 prevents state update after unmount
+
+    (async () => {
       try {
-        const response = await fetch("/api/auth/me", {
+        const res = await fetch("/api/auth/me", {
           method: "GET",
-          credentials: "include", // Include cookies
-        })
+          credentials: "include", // ← sends finbot_session cookie
+        });
 
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.user) {
-            setUser(data.user)
-          }
+        if (!active) return;
+        console.log(res);
+        if (res.ok) {
+          const { user } = await res.json(); // backend returns { user }
+          console.log(user);
+          setUser(user ?? null);
+        } else {
+          setUser(null);
+          if (res.status === 401) router.replace("/login");
         }
-      } catch (error) {
-        console.error("Auth check failed:", error)
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        if (active) setUser(null);
       } finally {
-        setIsLoading(false)
+        if (active) setIsLoading(false);
       }
-    }
+    })();
 
-    checkAuth()
-  }, [])
+    return () => {
+      active = false;
+    }; // cleanup on unmount
+  }, [router]);
 
   // If user is authenticated, show the chat interface
   if (user) {
@@ -56,20 +76,28 @@ export default function Home() {
         <div className="flex h-screen bg-background text-foreground">
           {/* Sidebar */}
           <motion.div
-            className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-300 overflow-hidden`}
+            className={`${
+              sidebarOpen ? "w-64" : "w-0"
+            } transition-all duration-300 overflow-hidden`}
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <Sidebar onToggle={() => setSidebarOpen(!sidebarOpen)} isOpen={sidebarOpen} />
+            <Sidebar
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              isOpen={sidebarOpen}
+            />
           </motion.div>
 
           <div className="flex-1 flex flex-col">
-            <ChatBlogLayout sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+            <ChatBlogLayout
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            />
           </div>
         </div>
       </ThemeProvider>
-    )
+    );
   }
 
   // If loading, show a simple loading state
@@ -85,7 +113,11 @@ export default function Home() {
           >
             <motion.div
               animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+              transition={{
+                duration: 1,
+                repeat: Number.POSITIVE_INFINITY,
+                ease: "linear",
+              }}
             >
               <Bot className="w-8 h-8" />
             </motion.div>
@@ -93,7 +125,7 @@ export default function Home() {
           </motion.div>
         </div>
       </ThemeProvider>
-    )
+    );
   }
 
   // If not authenticated, show the landing page
@@ -101,7 +133,8 @@ export default function Home() {
     {
       icon: Brain,
       title: "AI-Powered Intelligence",
-      description: "Advanced AI that understands context and provides intelligent responses",
+      description:
+        "Advanced AI that understands context and provides intelligent responses",
     },
     {
       icon: Zap,
@@ -118,7 +151,7 @@ export default function Home() {
       title: "Continuous Learning",
       description: "AI that adapts and improves with every interaction",
     },
-  ]
+  ];
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="finbot-theme">
@@ -175,10 +208,17 @@ export default function Home() {
               <span className="text-2xl font-bold text-white">FinBot</span>
             </div>
             <div className="flex space-x-3">
-              <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-gray-800" asChild>
+              <Button
+                variant="ghost"
+                className="text-gray-300 hover:text-white hover:bg-gray-800"
+                asChild
+              >
                 <Link href="/login">Login</Link>
               </Button>
-              <Button className="bg-white text-black hover:bg-gray-200 font-medium" asChild>
+              <Button
+                className="bg-white text-black hover:bg-gray-200 font-medium"
+                asChild
+              >
                 <Link href="/register">Get Started</Link>
               </Button>
             </div>
@@ -230,8 +270,9 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.6 }}
               >
-                Experience the future of financial conversations with our intelligent AI assistant. Get instant
-                insights, personalized advice, and lightning-fast responses.
+                Experience the future of financial conversations with our
+                intelligent AI assistant. Get instant insights, personalized
+                advice, and lightning-fast responses.
               </motion.p>
 
               <motion.div
@@ -285,14 +326,21 @@ export default function Home() {
                         className="inline-flex p-3 bg-gray-800 rounded-lg mb-4 border border-gray-700"
                         animate={{
                           scale: hoveredFeature === index ? 1.1 : 1,
-                          borderColor: hoveredFeature === index ? "rgb(255, 255, 255)" : "rgb(55, 65, 81)",
+                          borderColor:
+                            hoveredFeature === index
+                              ? "rgb(255, 255, 255)"
+                              : "rgb(55, 65, 81)",
                         }}
                         transition={{ duration: 0.2 }}
                       >
                         <feature.icon className="w-6 h-6 text-white" />
                       </motion.div>
-                      <h3 className="text-lg font-semibold mb-2 text-white">{feature.title}</h3>
-                      <p className="text-gray-400 text-sm leading-relaxed">{feature.description}</p>
+                      <h3 className="text-lg font-semibold mb-2 text-white">
+                        {feature.title}
+                      </h3>
+                      <p className="text-gray-400 text-sm leading-relaxed">
+                        {feature.description}
+                      </p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -333,8 +381,13 @@ export default function Home() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 1.4 }}
           >
-            <p className="text-gray-400 mb-4">Ready to revolutionize your financial conversations?</p>
-            <Button className="bg-white text-black hover:bg-gray-200 font-medium" asChild>
+            <p className="text-gray-400 mb-4">
+              Ready to revolutionize your financial conversations?
+            </p>
+            <Button
+              className="bg-white text-black hover:bg-gray-200 font-medium"
+              asChild
+            >
               <Link href="/register">
                 Join FinBot Today
                 <Sparkles className="ml-2 w-4 h-4" />
@@ -344,5 +397,5 @@ export default function Home() {
         </div>
       </div>
     </ThemeProvider>
-  )
+  );
 }
