@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-04
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-04
+ * @Last Modified time: 2025-07-06
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { MistralService } from "@/lib/mistral-service"

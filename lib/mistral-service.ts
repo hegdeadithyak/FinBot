@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-09
+ * @Last Modified time: 2025-07-06
  */
 import { Mistral } from "@mistralai/mistralai"
 
@@ -31,9 +31,15 @@ export class MistralService {
 
   constructor(config: MistralConfig) {
     this.client = new Mistral({
-      apiKey: config.apiKey,
-    })
-    this.model = config.model || "mistral-large-latest"
+     apiKey: "nfmpeCwgZ6GDeH30qSyhw4DfeB1PPhFZ",
+    });
+
+    const FINBOT_AGENT_ID = "ag:decdcd4d:20250602:finbot:c365517a";
+    this.model = "ft:open-mistral-7b:decdcd4d:20250602:4b4d086d"
+    // this.client = new Mistral({
+    // })
+    // apiKey: config.apiKey,
+    // this.model = config.model || "mistral-large-latest"
   }
 
   // Generate chat completion
@@ -49,19 +55,22 @@ export class MistralService {
     try {
       const { temperature = 0.7, maxTokens = 2000, topP = 1.0, stream = false } = options
 
-      const response = await this.client.chat.complete({
-        model: this.model,
+      const response = await this.client.agents.complete({
         messages: messages.map((msg) => ({
           role: msg.role,
           content: msg.content,
         })),
-        temperature,
-        maxTokens,
-        topP,
-        stream,
+        agentId:"ag:26507ac4:20250604:finbot:9cc49639",
+        
       })
-
-      const content = response.choices?.[0]?.message?.content || ""
+      console.log(response);
+      let contentRaw = response.choices?.[0]?.message?.content ?? '';
+      let content: string;
+      if (Array.isArray(contentRaw)) {
+        content = contentRaw.map((chunk: any) => typeof chunk === "string" ? chunk : chunk.content ?? '').join('');
+      } else {
+        content = contentRaw;
+      }
       const usage = response.usage
         ? {
             promptTokens: response.usage.promptTokens || 0,
@@ -72,6 +81,7 @@ export class MistralService {
 
       return { content, usage }
     } catch (error) {
+      
       console.error("Mistral API error:", error)
       throw new Error("Failed to generate response from Mistral")
     }

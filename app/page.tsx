@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChatBlogLayout } from "@/components/chat-blog-layout"
-import { MacBook } from "@/components/macbook"
 import { Zap, MessageSquare, Brain, Shield, Sparkles, ArrowRight, Bot, TrendingUp, Star } from "lucide-react"
 import Link from "next/link"
 import { Sidebar } from "@/components/sidebar"
@@ -264,10 +263,6 @@ export default function Home() {
                 </Button>
               </motion.div>
             </motion.div>
-
-            <MacBook>
-              <img src="/placeholder.jpg" alt="App preview" className="rounded-md" />
-            </MacBook>
 
             {/* Features Grid */}
             <motion.div

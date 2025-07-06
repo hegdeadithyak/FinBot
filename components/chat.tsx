@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactMarkdown from "react-markdown"
-import { MacBook } from "./macbook"
+
 
 /* ───────────────────────── types ─────────────────────────── */
 type Role = "user" | "assistant"
@@ -772,7 +772,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       </AnimatePresence>
 
       {/* Main Chat Area */}
-      <MacBook>
         <div className="flex flex-col flex-1">
         {/* Header */}
         <motion.header
@@ -1264,7 +1263,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           </div>
         </motion.div>
         </div>
-      </MacBook>
     </div>
   )
 }

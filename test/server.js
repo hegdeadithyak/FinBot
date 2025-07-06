@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-06-02
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-06-03
+ * @Last Modified time: 2025-07-06
  */
 import express from 'express';
 import { Mistral } from "@mistralai/mistralai";
@@ -12,17 +12,17 @@ import cors from 'cors';
 // Load environment variables
 dotenv.config();
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 
 const client = new Mistral({
-  apiKey: "6TcdJZMB27yANAbVT3MBpQvp5iPR97vZ",
+  apiKey: "nfmpeCwgZ6GDeH30qSyhw4DfeB1PPhFZ",
 });
 
-const FINBOT_AGENT_ID = "ag:decdcd4d:20250602:finbot:c365517a";
+const FINBOT_AGENT_ID = "ag:26507ac4:20250604:finbot:9cc49639";
 
 app.post('/api/chat/simple', async (req, res) => {
   const { messages } = req.body;
