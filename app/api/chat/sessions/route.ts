@@ -65,9 +65,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/* ═════════════════════════════════════════════════════════════════ */
-/*  POST – create a new chat                                         */
-/* ═════════════════════════════════════════════════════════════════ */
 export async function POST(req: NextRequest) {
   try {
     const uid = await ownerId(req);

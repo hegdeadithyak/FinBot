@@ -25,10 +25,9 @@ const serp = new SerpService();
 
 export async function POST(req: NextRequest) {
   try {
-    /* ── 0. Parse body ──────────────────────────────── */
     const {
       messages,
-      chatSessionId,               // optional
+      chatSessionId,               
       userProfile = {},
       enableWebSearch = false,
     } = await req.json();
@@ -107,14 +106,21 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 },
     );
-  } catch (err: any) {
-    console.error("Chat route error:", err);
-    return NextResponse.json(
-      {
-        error: err.message ?? "Internal server error",
-        details: process.env.NODE_ENV === "development" ? err.stack : undefined,
-      },
-      { status: 500 },
-    );
-  }
+  } catch (err: unknown) {
+  console.error("Chat route error:", err);
+
+  const isDebug = process.env.SHOW_ERROR_DETAILS === "true";      // <─ new flag
+
+  const message =
+    err instanceof Error ? err.message : typeof err === "string" ? err : "Unknown error";
+
+  const stack =
+    isDebug && err instanceof Error ? err.stack : undefined;
+
+  return NextResponse.json(
+    { error: message, details: stack },
+    { status: 500 },
+  );
+}
+
 }
