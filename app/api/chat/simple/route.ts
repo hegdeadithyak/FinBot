@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-07-07
+ * @Last Modified time: 2025-07-08
  */
 /**
  * Enhanced Chat endpoint
@@ -16,6 +16,7 @@ import { getOrCreateChat, saveMsg } from "@/lib/chat-store";
 import { MistralService } from "@/lib/mistral-service";
 import { SerpService } from "@/lib/serp-service";
 import { ownerId } from "@/lib/owner-id";
+import call_bert from "@/lib/distillbert-service";
 
 const prisma = new PrismaClient();
 const mistral = new MistralService({
@@ -25,13 +26,24 @@ const serp = new SerpService();
 
 export async function POST(req: NextRequest) {
   try {
-    const {
+    let {
       messages,
       chatSessionId,               
       userProfile = {},
       enableWebSearch = false,
     } = await req.json();
-
+    console.log(messages.at(-1).content);
+    const call_response = await call_bert(messages.at(-1).content);
+    console.log(call_response);
+    if(call_response.mode== "FAQ"){
+      enableWebSearch = true;
+    }else if(call_response.mode=="Fallback"){
+        messages.at(-1).content+"Do not Answer the question say the user that you are only limited to the Finance Sector."
+    }else{
+     messages.at(-1).content =  messages.at(-1).content+"This is a Escalation Query ask the"+
+      "information of user Name,Phone Number and email ensure everything is write like Phone number is Atleast 10 digits and email ends with @gmail.com and others like that until you get it from the memories above."+
+      "So that I can send a email/ contact the necessary person and ask for the bank as well and if everyting is there confirm once."
+    }
     if (!Array.isArray(messages) || messages.length === 0)
       return NextResponse.json(
         { error: "'messages' array is required and cannot be empty." },

@@ -1,3 +1,9 @@
+/**
+ * @Author: Adithya
+ * @Date:   2025-07-06
+ * @Last Modified by:   Adithya
+ * @Last Modified time: 2025-07-07
+ */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -16,6 +22,10 @@ module.exports = {
       },
     },
     extend: {
+      animation: {
+        'pulse-slow': 'pulse 4s ease-in-out infinite',
+        'pulse-fast': 'pulse 0.1s ease-in-out infinite',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

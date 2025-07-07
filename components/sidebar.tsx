@@ -24,7 +24,6 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const router   = useRouter();
   const pathname = usePathname();
 
-  /* ── fetch sessions once ─────────────────────────── */
   useEffect(() => {
     if (!isOpen || sessions !== null) return;
     (async () => {

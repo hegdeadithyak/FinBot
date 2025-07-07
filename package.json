@@ -12,6 +12,7 @@
     "@emotion/is-prop-valid": "latest",
     "@google-cloud/speech": "^7.1.0",
     "@google-cloud/text-to-speech": "^6.1.0",
+    "@gradio/client": "^1.15.4",
     "@hookform/resolvers": "^3.9.1",
     "@mem0/vercel-ai-provider": "^0.0.14",
     "@mistralai/mistralai": "^1.7.1",

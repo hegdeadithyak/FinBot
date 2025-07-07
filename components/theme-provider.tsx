@@ -16,6 +16,7 @@ const inter = Inter({
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const [mounted, setMounted] = React.useState(false)
+  //@ts-ignore
   const { theme } = props
 
   React.useEffect(() => {
@@ -30,7 +31,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     root.classList.add(inter.variable)
 
     if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark"
       root.classList.add(systemTheme)
       return
     }

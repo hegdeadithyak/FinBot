@@ -2,7 +2,7 @@
  * @Author: Adithya
  * @Date:   2025-07-06
  * @Last Modified by:   Adithya
- * @Last Modified time: 2025-07-07
+ * @Last Modified time: 2025-07-08
  */
 /**
  * POST /api/auth/register
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
 
     /* 4️⃣ build response with Set-Cookie */
     const res = NextResponse.json({ user }, { status: 201 });
+    //@ts-ignore
     res.cookies.set(makeCookie(token));           // finbot_session
     res.cookies.delete("session-token");          // clean up legacy cookie
     return res;
