@@ -1,9 +1,10 @@
 /**
- * @Author: Adithya
+ * @Author: 
  * @Date:   2025-07-06
- * @Last Modified by:   Adithya
+ * @Last Modified by:   
  * @Last Modified time: 2025-07-08
  */
+
 /**
  * POST /api/auth/register
  */
@@ -24,13 +25,8 @@ const registerSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    /* 1️⃣ validate input */
     const data = registerSchema.parse(await req.json());
-
-    /* 2️⃣ register user (returns { user, token }) */
     const { user, token } = await AuthService.register(data);
-
-    /* 3️⃣ merge guest sessions/messages if visitor UID exists */
     const guestId =
       req.headers.get("x-finbot-uid") ??
       req.cookies.get("finbot_uid")?.value ??

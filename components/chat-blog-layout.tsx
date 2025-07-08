@@ -19,12 +19,7 @@ export function ChatBlogLayout({ sidebarOpen, onToggleSidebar }: Props) {
         <BlogPanel />
       )}
       <div className="p-2 text-center border-t border-border">
-        <button
-          className="text-xs underline text-muted-foreground"
-          onClick={() => setMode(mode === 'chat' ? 'blog' : 'chat')}
-        >
-          {mode === 'chat' ? 'Switch to Blog View' : 'Switch to Chat View'}
-        </button>
+        
       </div>
     </div>
   )

@@ -1,12 +1,8 @@
 /**
- * @Author: Adithya
- * @Date:   2025-07-06
- * @Last Modified by:   Adithya
+ * @Author: 
+ * @Date:   2025-07-07
+ * @Last Modified by:   
  * @Last Modified time: 2025-07-08
- */
-/**
- * Enhanced Chat endpoint
- * Path: app/api/chat/simple/route.ts
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -40,9 +36,7 @@ export async function POST(req: NextRequest) {
     }else if(call_response.mode=="Fallback"){
         messages.at(-1).content+"Do not Answer the question say the user that you are only limited to the Finance Sector."
     }else{
-     messages.at(-1).content =  messages.at(-1).content+"This is a Escalation Query ask the"+
-      "information of user Name,Phone Number and email ensure everything is write like Phone number is Atleast 10 digits and email ends with @gmail.com and others like that until you get it from the memories above."+
-      "So that I can send a email/ contact the necessary person and ask for the bank as well and if everyting is there confirm once."
+        
     }
     if (!Array.isArray(messages) || messages.length === 0)
       return NextResponse.json(
