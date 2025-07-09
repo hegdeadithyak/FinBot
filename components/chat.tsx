@@ -1,6 +1,7 @@
-"use client"
+"use client";
 
-import { type FormEvent, useRef, useState, useEffect } from "react"
+import { type FormEvent, useRef, useState, useEffect } from "react";
+import { RetellWebClient } from "retell-client-js-sdk";
 import {
   Send,
   Bot,
@@ -29,116 +30,171 @@ import {
   Phone,
   PhoneOff,
   MicOff,
-} from "lucide-react"
-import ReactMarkdown from "react-markdown"
-import { gsap } from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
-import { Sidebar } from "@/components/sidebar"
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Sidebar } from "@/components/sidebar";
+import { translatePage, restorePage } from "@/lib/translate-page";
 
 // Register GSAP plugins
 if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger)
+  gsap.registerPlugin(ScrollTrigger);
 }
 
 /* ───────────────────────── types ─────────────────────────── */
-type Role = "user" | "assistant"
+type Role = "user" | "assistant";
 
 interface Source {
-  id: string
-  type: string
-  title: string
-  content: string
-  url: string
-  source: string
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  url: string;
+  source: string;
 }
 
 interface Message {
-  id: string
-  role: Role
-  content: string
-  timestamp: Date
-  liked?: boolean
-  disliked?: boolean
-  language?: string
-  isPlaying?: boolean
-  sources?: Source[]
+  id: string;
+  role: Role;
+  content: string;
+  timestamp: Date;
+  liked?: boolean;
+  disliked?: boolean;
+  language?: string;
+  isPlaying?: boolean;
+  sources?: Source[];
 }
 
 interface ChatProps {
-  sidebarOpen: boolean
-  onToggleSidebar: () => void
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_FINBOT_URL ?? "http://localhost:3001"
-const SIMPLE_ENDPOINT = `/api/chat/simple`
+const API_BASE = process.env.NEXT_PUBLIC_FINBOT_URL ?? "http://localhost:3001";
+const SIMPLE_ENDPOINT = `/api/chat/simple`;
 
 declare global {
   interface Window {
-    SpeechRecognition: any
-    webkitSpeechRecognition: any
-    SpeechSynthesis: any
-    SpeechSynthesisUtterance: any
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+    SpeechSynthesis: any;
+    SpeechSynthesisUtterance: any;
   }
 }
 
 export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
   /* state */
-  const [messages, setMessages] = useState<Message[]>([])
-  const [pending, setPending] = useState(false)
-  const [isConnected, setIsConnected] = useState(true)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [isListening, setIsListening] = useState(false)
-  const [transcript, setTranscript] = useState("")
-  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [preferredLanguage, setPreferredLanguage] = useState<string | null>(null)
-  const [showLanguagePrompt, setShowLanguagePrompt] = useState(false)
-  const [languageAsked, setLanguageAsked] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [pending, setPending] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [preferredLanguage, setPreferredLanguage] = useState<string | null>(
+    null
+  );
+  const [showLanguagePrompt, setShowLanguagePrompt] = useState(false);
+  const [languageAsked, setLanguageAsked] = useState(false);
   const [sourcesPanel, setSourcesPanel] = useState<{
-    isOpen: boolean
-    sources: Source[]
+    isOpen: boolean;
+    sources: Source[];
   }>({
     isOpen: false,
     sources: [],
-  })
-  const [selectedLanguage, setSelectedLanguage] = useState("EN")
-  const [autoReadMessages, setAutoReadMessages] = useState(false)
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  });
+  const [selectedLanguage, setSelectedLanguage] = useState("EN");
+  const [autoReadMessages, setAutoReadMessages] = useState(false);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Retell AI states
-  const [isVoiceConnected, setIsVoiceConnected] = useState(false)
-  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false)
-  const [voiceError, setVoiceError] = useState("")
-  const [isVoiceMuted, setIsVoiceMuted] = useState(false)
-  const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [isVoiceConnected, setIsVoiceConnected] = useState(false);
+  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  /* ───── languageOptions: keep EN + 7 major Indian languages ───── */
+  /* translate all static + dynamic text */
+  useEffect(() => {
+    const code = languageOptions.find(l => l.code === selectedLanguage)?.translationCode;
+    if (code) translatePage(code);
+  }, [selectedLanguage, messages]);   // re-run after every render change
 
   const languageOptions = [
-    { code: "EN", name: "English", speechLang: "en-US", translationCode: "en", flag: "🇺🇸" },
-    { code: "HI", name: "Hindi", speechLang: "hi-IN", translationCode: "hi", flag: "🇮🇳" },
-    { code: "TEL", name: "Telugu", speechLang: "te-IN", translationCode: "te", flag: "🇮🇳" },
-    { code: "ES", name: "Spanish", speechLang: "es-ES", translationCode: "es", flag: "🇪🇸" },
-    { code: "FR", name: "French", speechLang: "fr-FR", translationCode: "fr", flag: "🇫🇷" },
-    { code: "DE", name: "German", speechLang: "German", translationCode: "de", flag: "🇩🇪" },
-    { code: "ZH", name: "Chinese", speechLang: "zh-CN", translationCode: "zh", flag: "🇨🇳" },
-    { code: "AR", name: "Arabic", speechLang: "ar-SA", translationCode: "ar", flag: "🇸🇦" },
-    { code: "JA", name: "Japanese", speechLang: "ja-JP", translationCode: "ja", flag: "🇯🇵" },
-    { code: "KO", name: "Korean", speechLang: "ko-KR", translationCode: "ko", flag: "🇰🇷" },
-  ]
+    {
+      code: "EN",
+      name: "English",
+      speechLang: "en-IN",
+      translationCode: "en",
+      flag: "🇮🇳",
+    },
+    {
+      code: "HI",
+      name: "Hindi",
+      speechLang: "hi-IN",
+      translationCode: "hi",
+      flag: "🇮🇳",
+    },
+    {
+      code: "TE",
+      name: "Telugu",
+      speechLang: "te-IN",
+      translationCode: "te",
+      flag: "🇮🇳",
+    },
+    {
+      code: "TA",
+      name: "Tamil",
+      speechLang: "ta-IN",
+      translationCode: "ta",
+      flag: "🇮🇳",
+    },
+    {
+      code: "KN",
+      name: "Kannada",
+      speechLang: "kn-IN",
+      translationCode: "kn",
+      flag: "🇮🇳",
+    },
+    {
+      code: "ML",
+      name: "Malayalam",
+      speechLang: "ml-IN",
+      translationCode: "ml",
+      flag: "🇮🇳",
+    },
+    {
+      code: "MR",
+      name: "Marathi",
+      speechLang: "mr-IN",
+      translationCode: "mr",
+      flag: "🇮🇳",
+    },
+    {
+      code: "BN",
+      name: "Bengali",
+      speechLang: "bn-IN",
+      translationCode: "bn",
+      flag: "🇮🇳",
+    },
+  ] as const;
 
-  const inputRef = useRef<HTMLInputElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   //@ts-ignore
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const synthRef = useRef<SpeechSynthesis | null>(null)
-  const speakingRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const speakingRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Retell AI refs
-  const retellWebClientRef = useRef<any>(null)
+  const retellWebClientRef = useRef<any>(null);
 
   // Enhanced GSAP Animation Functions
   const initializeAnimations = () => {
@@ -157,8 +213,8 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           y: 0,
           duration: 1,
           ease: "power4.out",
-        },
-      )
+        }
+      );
     }
 
     // Enhanced floating elements animation
@@ -171,7 +227,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       yoyo: true,
       repeat: -1,
       stagger: 0.3,
-    })
+    });
 
     // More dynamic sparkle animation
     gsap.to(".sparkle", {
@@ -182,7 +238,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       repeat: -1,
       stagger: 0.8,
       transformOrigin: "center center",
-    })
+    });
 
     // Animate header elements with stagger
     gsap.fromTo(
@@ -198,9 +254,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         stagger: 0.1,
         delay: 0.3,
         ease: "back.out(1.7)",
-      },
-    )
-  }
+      }
+    );
+  };
 
   const animateMessageIn = (element: HTMLElement, delay = 0) => {
     gsap.fromTo(
@@ -219,25 +275,25 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         duration: 0.8,
         delay,
         ease: "back.out(1.4)",
-      },
-    )
-  }
+      }
+    );
+  };
 
   const animateButtonHover = (element: HTMLElement) => {
-    const tl = gsap.timeline({ paused: true })
+    const tl = gsap.timeline({ paused: true });
     tl.to(element, {
       scale: 1.05,
       y: -3,
       duration: 0.3,
       ease: "back.out(1.7)",
-    })
+    });
 
-    element.addEventListener("mouseenter", () => tl.play())
-    element.addEventListener("mouseleave", () => tl.reverse())
-  }
+    element.addEventListener("mouseenter", () => tl.play());
+    element.addEventListener("mouseleave", () => tl.reverse());
+  };
 
   const animateTyping = () => {
-    const dots = document.querySelectorAll(".typing-dot")
+    const dots = document.querySelectorAll(".typing-dot");
     gsap.to(dots, {
       scale: 1.3,
       opacity: 0.9,
@@ -246,17 +302,17 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       stagger: 0.15,
       yoyo: true,
       repeat: -1,
-    })
-  }
+    });
+  };
 
   const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   // Enhanced theme toggle with animation
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode)
-    document.documentElement.classList.toggle("dark")
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.classList.toggle("dark");
 
     // Animate theme transition
     gsap.to(chatContainerRef.current, {
@@ -265,281 +321,286 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       yoyo: true,
       repeat: 1,
       ease: "power2.inOut",
-    })
-  }
+    });
+  };
 
-  // Retell AI Functions
-  const initializeRetellClient = async () => {
-    try {
-      // Import Retell Web Client (you'll need to install this package)
-      const { RetellWebClient } = await import("retell-client-js-sdk")
+  // // Retell AI Functions
+  // const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  // const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  // const [voiceError, setVoiceError] = useState("");
+  // const [showVoiceModal, setShowVoiceModal] = useState(false);
 
-      retellWebClientRef.current = new RetellWebClient()
+  // const retellWebClientRef = useRef<RetellWebClient | null>(null);
 
-      // Set up event listeners
-      retellWebClientRef.current.on("conversationStarted", () => {
-        console.log("Voice conversation started")
-        setIsVoiceConnected(true)
-        setIsVoiceConnecting(false)
-        setVoiceError("")
-        setShowVoiceModal(true)
-      })
+  // ─── initialise once on mount ────────────────────────────────────────────────
+  useEffect(() => {
+    const client = new RetellWebClient();
+    retellWebClientRef.current = client;
 
-      retellWebClientRef.current.on("conversationEnded", () => {
-        console.log("Voice conversation ended")
-        setIsVoiceConnected(false)
-        setIsVoiceConnecting(false)
-        setShowVoiceModal(false)
-        setIsVoiceMuted(false)
-      })
+    /* real-time events */
+    client.on("call_started", () => {
+      setIsVoiceConnected(true);
+      setIsVoiceConnecting(false);
+      setVoiceError("");
+      setShowVoiceModal(true);
+    });
 
-      retellWebClientRef.current.on("error", (error: any) => {
-        console.error("Retell error:", error)
-        setVoiceError(error.message || "Voice connection error occurred")
-        setIsVoiceConnected(false)
-        setIsVoiceConnecting(false)
-        setShowVoiceModal(false)
-      })
+    client.on("call_ended", () => {
+      setIsVoiceConnected(false);
+      setIsVoiceConnecting(false);
+      setShowVoiceModal(false);
+      setIsVoiceMuted(false);
+    });
 
-      retellWebClientRef.current.on("update", (update: any) => {
-        // Handle real-time updates like transcript
-        if (update.transcript) {
-          // You can add transcript handling here if needed
-        }
-      })
-    } catch (err) {
-      console.error("Failed to initialize Retell client:", err)
-      setVoiceError("Failed to initialize voice client")
-    }
-  }
+    client.on("update", (u) => {
+      // hook for live transcript, agent status, etc.
+      // if (u.transcript) console.log(u.transcript);
+    });
 
+    client.on("error", (err: any) => {
+      console.error("Retell error:", err);
+      setVoiceError(err?.message ?? "Voice connection error");
+      setIsVoiceConnecting(false);
+      setIsVoiceConnected(false);
+      setShowVoiceModal(false);
+    });
+
+    return () => {
+      client.stopCall(); // tidy-up on unmount
+    };
+  }, []);
+
+  /* ─── start a web-call ─────────────────────────────────────────────────────── */
   const startVoiceCall = async () => {
-    if (!retellWebClientRef.current) {
-      setVoiceError("Voice client not initialized")
-      return
-    }
-
-    setIsVoiceConnecting(true)
-    setVoiceError("")
+    if (!retellWebClientRef.current) return setVoiceError("Client not ready");
 
     try {
-      // Get access token from your backend
-      const response = await fetch("/api/retell/token", {
+      setIsVoiceConnecting(true);
+      const res = await fetch("/api/retell/token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agent_id: process.env.NEXT_PUBLIC_RETELL_AGENT_ID,
         }),
-      })
+      });
+      if (!res.ok) throw new Error("Failed to fetch access token");
 
-      if (!response.ok) {
-        throw new Error("Failed to get access token")
-      }
-
-      const { access_token } = await response.json()
-
-      // Start the call with Retell
+      const { access_token } = await res.json();
       await retellWebClientRef.current.startCall({
         accessToken: access_token,
-        callType: "web_call",
-        metadata: {
-          user_id: "user_123",
-        },
-      })
+        /* optional:
+         sampleRate: 24000,
+         captureDeviceId: "default",
+         playbackDeviceId: "default",
+      */
+      });
     } catch (err: any) {
-      console.error("Failed to start voice call:", err)
-      setVoiceError(err.message || "Failed to connect to voice agent")
-      setIsVoiceConnecting(false)
+      console.error(err);
+      setVoiceError(err.message ?? "Unable to connect");
+      setIsVoiceConnecting(false);
     }
-  }
+  };
 
+  /* ─── end the call ─────────────────────────────────────────────────────────── */
   const endVoiceCall = async () => {
-    if (retellWebClientRef.current && isVoiceConnected) {
-      try {
-        await retellWebClientRef.current.stopCall()
-        setIsVoiceConnected(false)
-        setShowVoiceModal(false)
-        setIsVoiceMuted(false)
-      } catch (err) {
-        console.error("Failed to end voice call:", err)
-        setVoiceError("Failed to end voice call")
-      }
+    try {
+      retellWebClientRef.current?.stopCall();
+    } catch (err) {
+      console.error(err);
+      setVoiceError("Failed to end call");
     }
-  }
+  };
 
+  /* ─── mute / un-mute ───────────────────────────────────────────────────────── */
   const toggleVoiceMute = () => {
-    if (retellWebClientRef.current && isVoiceConnected) {
-      setIsVoiceMuted(!isVoiceMuted)
-      // Implement mute/unmute logic with Retell client
-      retellWebClientRef.current.toggleMute()
+    if (!retellWebClientRef.current || !isVoiceConnected) return;
+    if (isVoiceMuted) {
+      retellWebClientRef.current.unmute();
+    } else {
+      retellWebClientRef.current.mute();
     }
-  }
+    setIsVoiceMuted(!isVoiceMuted);
+  };
 
   useEffect(() => {
-    initializeAnimations()
-    initializeRetellClient()
+    initializeAnimations();
+    // initializeRetellClient();
 
     return () => {
       // Cleanup on unmount
       if (retellWebClientRef.current) {
-        retellWebClientRef.current.stopCall()
+        retellWebClientRef.current.stopCall();
       }
-    }
-  }, [])
+    };
+  }, []);
 
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch(`/api/chat/health`)
-        setIsConnected(response.ok)
+        const response = await fetch(`/api/chat/health`);
+        setIsConnected(response.ok);
       } catch {
-        setIsConnected(false)
+        setIsConnected(false);
       }
-    }
+    };
 
-    checkConnection()
-    const interval = setInterval(checkConnection, 30000)
-    return () => clearInterval(interval)
-  }, [])
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (pending) {
-      animateTyping()
+      animateTyping();
     }
-  }, [pending])
+  }, [pending]);
 
   const recordAudioBlob = (): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       navigator.mediaDevices
         .getUserMedia({ audio: true })
         .then((stream) => {
-          const mediaRecorder = new MediaRecorder(stream)
-          mediaRecorderRef.current = mediaRecorder
-          audioChunksRef.current = []
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+          audioChunksRef.current = [];
 
           mediaRecorder.ondataavailable = (event) => {
-            audioChunksRef.current.push(event.data)
-          }
+            audioChunksRef.current.push(event.data);
+          };
 
           mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" })
-            stream.getTracks().forEach((track) => track.stop())
-            resolve(audioBlob)
-          }
+            const audioBlob = new Blob(audioChunksRef.current, {
+              type: "audio/wav",
+            });
+            stream.getTracks().forEach((track) => track.stop());
+            resolve(audioBlob);
+          };
 
-          mediaRecorder.start()
+          mediaRecorder.start();
           setTimeout(() => {
             if (mediaRecorder.state === "recording") {
-              mediaRecorder.stop()
+              mediaRecorder.stop();
             }
-          }, 5000)
+          }, 5000);
         })
-        .catch(reject)
-    })
-  }
+        .catch(reject);
+    });
+  };
 
   const toggleListening = async () => {
     if (isListening) {
-      setIsListening(false)
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop()
+      setIsListening(false);
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state === "recording"
+      ) {
+        mediaRecorderRef.current.stop();
       }
     } else {
       try {
-        setIsListening(true)
-        setTranscript("")
+        setIsListening(true);
+        setTranscript("");
 
-        const audioBlob = await recordAudioBlob()
-        const formData = new FormData()
-        formData.append("audio", audioBlob)
+        const audioBlob = await recordAudioBlob();
+        const formData = new FormData();
+        formData.append("audio", audioBlob);
         formData.append(
           "language",
-          languageOptions.find((lang) => lang.code === selectedLanguage)?.translationCode || "en",
-        )
+          languageOptions.find((lang) => lang.code === selectedLanguage)
+            ?.translationCode || "en"
+        );
 
         const response = await fetch("/api/transcribe", {
           method: "POST",
           body: formData,
-        })
+        });
 
         if (!response.ok) {
-          throw new Error(`Speech recognition failed: ${response.statusText}`)
+          throw new Error(`Speech recognition failed: ${response.statusText}`);
         }
 
-        const { transcript, detectedLanguage } = await response.json()
-        setTranscript(transcript)
+        const { transcript, detectedLanguage } = await response.json();
+        setTranscript(transcript);
 
         if (inputRef.current) {
-          inputRef.current.value = transcript
+          inputRef.current.value = transcript;
         }
 
         if (detectedLanguage && detectedLanguage !== selectedLanguage) {
           const detectedOption = languageOptions.find(
-            (lang) => lang.translationCode === detectedLanguage.toLowerCase().substring(0, 2),
-          )
+            (lang) =>
+              lang.translationCode ===
+              detectedLanguage.toLowerCase().substring(0, 2)
+          );
           if (detectedOption) {
-            setDetectedLanguage(detectedOption.translationCode)
+            setDetectedLanguage(detectedOption.translationCode);
             if (!languageAsked) {
-              setShowLanguagePrompt(true)
+              setShowLanguagePrompt(true);
             }
           }
         }
       } catch (error) {
-        console.error("Speech recognition error:", error)
-        setIsListening(false)
+        console.error("Speech recognition error:", error);
+        setIsListening(false);
       } finally {
-        setIsListening(false)
+        setIsListening(false);
       }
     }
-  }
+  };
 
   const copyMessage = async (content: string, id: string) => {
-    await navigator.clipboard.writeText(content)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2000)
-  }
+    await navigator.clipboard.writeText(content);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const likeMessage = (id: string) => {
-    setMessages((msgs) => msgs.map((msg) => (msg.id === id ? { ...msg, liked: !msg.liked, disliked: false } : msg)))
-  }
+    setMessages((msgs) =>
+      msgs.map((msg) =>
+        msg.id === id ? { ...msg, liked: !msg.liked, disliked: false } : msg
+      )
+    );
+  };
 
   const dislikeMessage = (id: string) => {
-    setMessages((msgs) => msgs.map((msg) => (msg.id === id ? { ...msg, disliked: !msg.disliked, liked: false } : msg)))
-  }
+    setMessages((msgs) =>
+      msgs.map((msg) =>
+        msg.id === id ? { ...msg, disliked: !msg.disliked, liked: false } : msg
+      )
+    );
+  };
 
   const showSources = (sources: Source[]) => {
     setSourcesPanel({
       isOpen: true,
       sources: sources,
-    })
-  }
+    });
+  };
 
   const closeSources = () => {
     setSourcesPanel({
       isOpen: false,
       sources: [],
-    })
-  }
+    });
+  };
 
   const regenerateResponse = async (messageIndex: number) => {
-    const messagesUpToIndex = messages.slice(0, messageIndex)
-    const userMessages = messagesUpToIndex.filter((m) => m.role === "user")
-    if (userMessages.length === 0) return
+    const messagesUpToIndex = messages.slice(0, messageIndex);
+    const userMessages = messagesUpToIndex.filter((m) => m.role === "user");
+    if (userMessages.length === 0) return;
 
-    setMessages(messagesUpToIndex)
-    setPending(true)
+    setMessages(messagesUpToIndex);
+    setPending(true);
 
     try {
       const res = await fetch(SIMPLE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: messagesUpToIndex }),
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json();
         if (data.response) {
           setMessages((msgs) => [
             ...msgs,
@@ -550,91 +611,100 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
               timestamp: new Date(),
               sources: data.sources || [],
             },
-          ])
+          ]);
         }
       }
     } catch (error) {
-      console.error("Regenerate error:", error)
+      console.error("Regenerate error:", error);
     } finally {
-      setPending(false)
+      setPending(false);
     }
-  }
+  };
 
   const speakText = (text: string, messageId: string, language = "en-US") => {
     if (typeof window !== "undefined" && window.speechSynthesis) {
       // Stop any current speech
-      window.speechSynthesis.cancel()
+      window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = language
-      utterance.rate = 0.9
-      utterance.pitch = 1
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language;
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
 
       utterance.onstart = () => {
-        setMessages((msgs) => msgs.map((msg) => (msg.id === messageId ? { ...msg, isPlaying: true } : msg)))
-      }
+        setMessages((msgs) =>
+          msgs.map((msg) =>
+            msg.id === messageId ? { ...msg, isPlaying: true } : msg
+          )
+        );
+      };
 
       utterance.onend = () => {
-        setMessages((msgs) => msgs.map((msg) => (msg.id === messageId ? { ...msg, isPlaying: false } : msg)))
-      }
+        setMessages((msgs) =>
+          msgs.map((msg) =>
+            msg.id === messageId ? { ...msg, isPlaying: false } : msg
+          )
+        );
+      };
 
-      window.speechSynthesis.speak(utterance)
-      speakingRef.current = utterance
+      window.speechSynthesis.speak(utterance);
+      speakingRef.current = utterance;
     }
-  }
+  };
 
   const stopSpeaking = () => {
     if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel()
-      setMessages((msgs) => msgs.map((msg) => ({ ...msg, isPlaying: false })))
+      window.speechSynthesis.cancel();
+      setMessages((msgs) => msgs.map((msg) => ({ ...msg, isPlaying: false })));
     }
-  }
+  };
 
   async function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    const text = inputRef.current?.value.trim()
-    if (!text || pending) return
+    e.preventDefault();
+    const text = inputRef.current?.value.trim();
+    if (!text || pending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: text,
       timestamp: new Date(),
-    }
+    };
 
-    const initial = [...messages, userMessage]
-    setMessages(initial)
-    setPending(true)
-    inputRef.current!.value = ""
-    setTranscript("")
+    const initial = [...messages, userMessage];
+    setMessages(initial);
+    setPending(true);
+    inputRef.current!.value = "";
+    setTranscript("");
 
     try {
       const res = await fetch(SIMPLE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: initial }),
-      })
+      });
 
       if (!res.ok) {
-        console.error("API error:", res.status, res.statusText)
+        console.error("API error:", res.status, res.statusText);
         setMessages((msgs) => [
           ...msgs,
           {
             id: Date.now().toString(),
             role: "assistant",
-            content: "Sorry, I'm having trouble connecting to the server. Please try again.",
+            content:
+              "Sorry, I'm having trouble connecting to the server. Please try again.",
             timestamp: new Date(),
           },
-        ])
-        setPending(false)
-        return
+        ]);
+        setPending(false);
+        return;
       }
 
-      const data = await res.json()
+      const data = await res.json();
       if (data.response) {
-        const messageId = Date.now().toString()
-        const responseContent = data.response
-        const translatedContent = responseContent
+        const messageId = Date.now().toString();
+        const responseContent = data.response;
+        const translatedContent = responseContent;
 
         const newMessage: Message = {
           id: messageId,
@@ -642,18 +712,24 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           content: translatedContent,
           timestamp: new Date(),
           sources: data.sources || [],
-        }
+        };
 
-        setMessages((msgs) => [...msgs, newMessage])
+        setMessages((msgs) => [...msgs, newMessage]);
 
         if (autoReadMessages) {
-          const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
+          const currentLang = languageOptions.find(
+            (lang) => lang.code === selectedLanguage
+          );
           setTimeout(() => {
-            speakText(translatedContent, messageId, currentLang?.speechLang || "en-US")
-          }, 500)
+            speakText(
+              translatedContent,
+              messageId,
+              currentLang?.speechLang || "en-US"
+            );
+          }, 500);
         }
       } else if (data.error) {
-        console.error("API returned error:", data.error)
+        console.error("API returned error:", data.error);
         setMessages((msgs) => [
           ...msgs,
           {
@@ -662,10 +738,10 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
             content: `Error: ${data.error}`,
             timestamp: new Date(),
           },
-        ])
+        ]);
       }
     } catch (error) {
-      console.error("Chat error:", error)
+      console.error("Chat error:", error);
       setMessages((msgs) => [
         ...msgs,
         {
@@ -674,13 +750,15 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           content: "Sorry, something went wrong. Please try again.",
           timestamp: new Date(),
         },
-      ])
+      ]);
     } finally {
-      setPending(false)
+      setPending(false);
     }
   }
 
-  const currentLanguage = languageOptions.find((lang) => lang.code === selectedLanguage) || languageOptions[0]
+  const currentLanguage =
+    languageOptions.find((lang) => lang.code === selectedLanguage) ||
+    languageOptions[0];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-cyan-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-all duration-700">
@@ -705,8 +783,12 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                 <div className="absolute -inset-4 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 rounded-full blur-2xl opacity-30 animate-pulse" />
               </div>
 
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Connected to Voice Agent</h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-8">Speak naturally with FinBot</p>
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+                Connected to Voice Agent
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-8">
+                Speak naturally with FinBot
+              </p>
 
               <div className="flex items-center justify-center gap-4">
                 <button
@@ -717,7 +799,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                       : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                   }`}
                 >
-                  {isVoiceMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                  {isVoiceMuted ? (
+                    <MicOff className="w-6 h-6" />
+                  ) : (
+                    <Mic className="w-6 h-6" />
+                  )}
                 </button>
 
                 <button
@@ -745,7 +831,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-900 dark:text-slate-100 text-xl">Sources</h2>
+                  <h2 className="font-bold text-slate-900 dark:text-slate-100 text-xl">
+                    Sources
+                  </h2>
                   <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">
                     {sourcesPanel.sources.length} references found
                   </p>
@@ -829,18 +917,25 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         <Brain className="w-6 h-6 text-blue-500" />
                       </div>
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 font-bold text-lg">Your AI Banking Assistant</p>
+                    <p className="text-slate-600 dark:text-slate-400 font-bold text-lg">
+                      Your AI Banking Assistant
+                    </p>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => (window.location.href = "https://blogify-two-pi.vercel.app/")}
+                  onClick={() =>
+                    (window.location.href =
+                      "https://blogify-two-pi.vercel.app/")
+                  }
                   className="header-item flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-slate-100/80 to-blue-100/80 dark:from-slate-800/80 dark:to-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/50 hover:border-blue-300/70 dark:hover:border-blue-600/50 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 group"
                 >
                   <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
-                  <span className="text-slate-700 dark:text-slate-300 font-bold">Read Blogs</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-bold">
+                    Read Blogs
+                  </span>
                 </button>
 
                 {/* Talk to Agent Button */}
@@ -852,17 +947,23 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   {isVoiceConnecting ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
-                      <span className="text-slate-700 dark:text-slate-300 font-bold">Connecting...</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">
+                        Connecting...
+                      </span>
                     </>
                   ) : isVoiceConnected ? (
                     <>
                       <PhoneOff className="w-5 h-5 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform" />
-                      <span className="text-slate-700 dark:text-slate-300 font-bold">End Call</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">
+                        End Call
+                      </span>
                     </>
                   ) : (
                     <>
                       <Phone className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform" />
-                      <span className="text-slate-700 dark:text-slate-300 font-bold">Talk to Agent</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">
+                        Talk to Agent
+                      </span>
                     </>
                   )}
                 </button>
@@ -881,7 +982,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                 {preferredLanguage && (
                   <div className="header-item flex items-center gap-3 bg-gradient-to-r from-slate-100/80 to-blue-100/80 dark:from-slate-800/80 dark:to-slate-900/80 backdrop-blur-sm px-4 py-3 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-lg">
                     <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    <span className="text-slate-700 dark:text-slate-300 font-bold">{preferredLanguage}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-bold">
+                      {preferredLanguage}
+                    </span>
                   </div>
                 )}
 
@@ -902,7 +1005,10 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
           </header>
 
           {/* Enhanced Chat Messages */}
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto custom-scrollbar">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto custom-scrollbar"
+          >
             <div className="max-w-6xl mx-auto px-8 py-12">
               {messages.length === 0 && (
                 <div className="text-center py-24">
@@ -920,8 +1026,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                     Welcome to FinBot
                   </h2>
                   <p className="text-2xl text-slate-600 dark:text-slate-400 mb-20 max-w-4xl mx-auto leading-relaxed font-semibold">
-                    Your intelligent banking assistant powered by advanced AI. Ask me anything about your accounts,
-                    transactions, or banking services, and I'll provide personalized assistance.
+                    Your intelligent banking assistant powered by advanced AI.
+                    Ask me anything about your accounts, transactions, or
+                    banking services, and I'll provide personalized assistance.
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
@@ -929,33 +1036,42 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                       {
                         text: "What's my account balance?",
                         icon: "💰",
-                        gradient: "from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30",
-                        border: "border-emerald-200/60 dark:border-emerald-700/40",
-                        hover: "hover:border-emerald-300/80 dark:hover:border-emerald-600/60",
+                        gradient:
+                          "from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30",
+                        border:
+                          "border-emerald-200/60 dark:border-emerald-700/40",
+                        hover:
+                          "hover:border-emerald-300/80 dark:hover:border-emerald-600/60",
                         iconBg: "bg-emerald-500",
                       },
                       {
                         text: "How do I transfer money?",
                         icon: "💸",
-                        gradient: "from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30",
+                        gradient:
+                          "from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30",
                         border: "border-blue-200/60 dark:border-blue-700/40",
-                        hover: "hover:border-blue-300/80 dark:hover:border-blue-600/60",
+                        hover:
+                          "hover:border-blue-300/80 dark:hover:border-blue-600/60",
                         iconBg: "bg-blue-500",
                       },
                       {
                         text: "Help with loan application",
                         icon: "🏠",
-                        gradient: "from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30",
+                        gradient:
+                          "from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30",
                         border: "border-amber-200/60 dark:border-amber-700/40",
-                        hover: "hover:border-amber-300/80 dark:hover:border-amber-600/60",
+                        hover:
+                          "hover:border-amber-300/80 dark:hover:border-amber-600/60",
                         iconBg: "bg-amber-500",
                       },
                       {
                         text: "Credit card payment options",
                         icon: "💳",
-                        gradient: "from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/30",
+                        gradient:
+                          "from-rose-100 to-pink-100 dark:from-rose-900/30 dark:to-pink-900/30",
                         border: "border-rose-200/60 dark:border-rose-700/40",
-                        hover: "hover:border-rose-300/80 dark:hover:border-rose-600/60",
+                        hover:
+                          "hover:border-rose-300/80 dark:hover:border-rose-600/60",
                         iconBg: "bg-rose-500",
                       },
                     ].map((suggestion, index) => (
@@ -965,8 +1081,8 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         style={{ animationDelay: `${1 + index * 0.15}s` }}
                         onClick={() => {
                           if (inputRef.current) {
-                            inputRef.current.value = suggestion.text
-                            inputRef.current.focus()
+                            inputRef.current.value = suggestion.text;
+                            inputRef.current.focus();
                           }
                         }}
                       >
@@ -993,7 +1109,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                     className="group animate-fade-in-up"
                     style={{ animationDelay: `${index * 150}ms` }}
                   >
-                    <div className={`flex gap-6 ${message.role === "user" ? "justify-end" : ""}`}>
+                    <div
+                      className={`flex gap-6 ${
+                        message.role === "user" ? "justify-end" : ""
+                      }`}
+                    >
                       {message.role === "assistant" && (
                         <div className="relative flex-shrink-0">
                           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500 rounded-2xl flex items-center justify-center shadow-2xl">
@@ -1003,7 +1123,13 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         </div>
                       )}
 
-                      <div className={`flex-1 ${message.role === "user" ? "max-w-3xl ml-auto" : "max-w-none"}`}>
+                      <div
+                        className={`flex-1 ${
+                          message.role === "user"
+                            ? "max-w-3xl ml-auto"
+                            : "max-w-none"
+                        }`}
+                      >
                         <div
                           className={`${
                             message.role === "user"
@@ -1015,13 +1141,19 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                             <ReactMarkdown
                               components={{
                                 p: ({ children }) => (
-                                  <p className="mb-4 last:mb-0 leading-relaxed text-lg">{children}</p>
+                                  <p className="mb-4 last:mb-0 leading-relaxed text-lg">
+                                    {children}
+                                  </p>
                                 ),
                                 strong: ({ children }) => (
-                                  <strong className="font-bold text-blue-600 dark:text-blue-400">{children}</strong>
+                                  <strong className="font-bold text-blue-600 dark:text-blue-400">
+                                    {children}
+                                  </strong>
                                 ),
                                 em: ({ children }) => (
-                                  <em className="italic text-slate-600 dark:text-slate-300">{children}</em>
+                                  <em className="italic text-slate-600 dark:text-slate-300">
+                                    {children}
+                                  </em>
                                 ),
                                 code: ({ children }) => (
                                   <code className="bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl text-base font-mono text-slate-800 dark:text-slate-200 shadow-sm">
@@ -1034,13 +1166,19 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                                   </pre>
                                 ),
                                 ul: ({ children }) => (
-                                  <ul className="list-disc list-inside mb-6 space-y-3">{children}</ul>
+                                  <ul className="list-disc list-inside mb-6 space-y-3">
+                                    {children}
+                                  </ul>
                                 ),
                                 ol: ({ children }) => (
-                                  <ol className="list-decimal list-inside mb-6 space-y-3">{children}</ol>
+                                  <ol className="list-decimal list-inside mb-6 space-y-3">
+                                    {children}
+                                  </ol>
                                 ),
                                 li: ({ children }) => (
-                                  <li className="text-slate-700 dark:text-slate-300 text-lg">{children}</li>
+                                  <li className="text-slate-700 dark:text-slate-300 text-lg">
+                                    {children}
+                                  </li>
                                 ),
                                 a: ({ href, children }) => (
                                   <a
@@ -1080,23 +1218,27 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         </div>
 
                         {/* Enhanced Sources buttons */}
-                        {message.role === "assistant" && message.sources && message.sources.length > 0 && (
-                          <div className="flex flex-wrap gap-4 mt-6">
-                            <button
-                              onClick={() => showSources(message.sources!)}
-                              className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-slate-100/90 to-blue-100/90 dark:from-slate-800/90 dark:to-slate-900/90 backdrop-blur-sm text-blue-600 dark:text-blue-400 rounded-2xl text-base font-bold border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-300/80 dark:hover:border-blue-600/60 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                            >
-                              <FileText className="w-5 h-5" />
-                              <span>{message.sources.length} Sources</span>
-                            </button>
-                          </div>
-                        )}
+                        {message.role === "assistant" &&
+                          message.sources &&
+                          message.sources.length > 0 && (
+                            <div className="flex flex-wrap gap-4 mt-6">
+                              <button
+                                onClick={() => showSources(message.sources!)}
+                                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-slate-100/90 to-blue-100/90 dark:from-slate-800/90 dark:to-slate-900/90 backdrop-blur-sm text-blue-600 dark:text-blue-400 rounded-2xl text-base font-bold border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-300/80 dark:hover:border-blue-600/60 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                              >
+                                <FileText className="w-5 h-5" />
+                                <span>{message.sources.length} Sources</span>
+                              </button>
+                            </div>
+                          )}
 
                         {message.role === "assistant" && (
                           <div className="flex items-center gap-3 mt-6 opacity-0 group-hover:opacity-100 transition-all duration-300">
                             <button
                               className="p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-110 active:scale-95 shadow-sm"
-                              onClick={() => copyMessage(message.content, message.id)}
+                              onClick={() =>
+                                copyMessage(message.content, message.id)
+                              }
                             >
                               {copiedId === message.id ? (
                                 <Check className="w-5 h-5 text-emerald-500" />
@@ -1114,7 +1256,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
                             <button
                               className={`p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-110 active:scale-95 shadow-sm ${
-                                message.liked ? "text-emerald-500" : "text-slate-500 dark:text-slate-400"
+                                message.liked
+                                  ? "text-emerald-500"
+                                  : "text-slate-500 dark:text-slate-400"
                               }`}
                               onClick={() => likeMessage(message.id)}
                             >
@@ -1123,7 +1267,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
                             <button
                               className={`p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-110 active:scale-95 shadow-sm ${
-                                message.disliked ? "text-red-500" : "text-slate-500 dark:text-slate-400"
+                                message.disliked
+                                  ? "text-red-500"
+                                  : "text-slate-500 dark:text-slate-400"
                               }`}
                               onClick={() => dislikeMessage(message.id)}
                             >
@@ -1132,13 +1278,21 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
                             <button
                               className={`p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-110 active:scale-95 shadow-sm ${
-                                message.isPlaying ? "text-blue-500" : "text-slate-500 dark:text-slate-400"
+                                message.isPlaying
+                                  ? "text-blue-500"
+                                  : "text-slate-500 dark:text-slate-400"
                               }`}
                               onClick={() =>
-                                message.isPlaying ? stopSpeaking() : speakText(message.content, message.id)
+                                message.isPlaying
+                                  ? stopSpeaking()
+                                  : speakText(message.content, message.id)
                               }
                             >
-                              {message.isPlaying ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                              {message.isPlaying ? (
+                                <VolumeX className="w-5 h-5" />
+                              ) : (
+                                <Volume2 className="w-5 h-5" />
+                              )}
                             </button>
                           </div>
                         )}
@@ -1169,22 +1323,31 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                           {detectedLanguage === "es"
                             ? "Spanish"
                             : detectedLanguage === "fr"
-                              ? "French"
-                              : detectedLanguage === "de"
-                                ? "German"
-                                : detectedLanguage === "zh"
-                                  ? "Chinese"
-                                  : detectedLanguage === "hi"
-                                    ? "Hindi"
-                                    : detectedLanguage === "ar"
-                                      ? "Arabic"
-                                      : "another language"}
-                          . Would you like me to communicate in a different language?
+                            ? "French"
+                            : detectedLanguage === "de"
+                            ? "German"
+                            : detectedLanguage === "zh"
+                            ? "Chinese"
+                            : detectedLanguage === "hi"
+                            ? "Hindi"
+                            : detectedLanguage === "ar"
+                            ? "Arabic"
+                            : "another language"}
+                          . Would you like me to communicate in a different
+                          language?
                         </p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-4">
-                      {["English", "Spanish", "French", "German", "Chinese", "Hindi", "Arabic"].map((lang) => (
+                      {[
+                        "English",
+                        "Spanish",
+                        "French",
+                        "German",
+                        "Chinese",
+                        "Hindi",
+                        "Arabic",
+                      ].map((lang) => (
                         <button
                           key={lang}
                           className="px-6 py-3 text-base bg-gradient-to-r from-white/95 to-slate-50/95 dark:from-slate-800/95 dark:to-slate-900/95 backdrop-blur-sm text-slate-700 dark:text-slate-300 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-300/80 dark:hover:border-blue-600/60 transition-all duration-300 font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
@@ -1198,8 +1361,8 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                       <button
                         className="px-6 py-3 text-base bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 text-slate-500 dark:text-slate-400 rounded-2xl border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
                         onClick={() => {
-                          setShowLanguagePrompt(false)
-                          setLanguageAsked(true)
+                          setShowLanguagePrompt(false);
+                          setLanguageAsked(true);
                         }}
                       >
                         No, thanks
@@ -1219,7 +1382,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                     </div>
                     <div className="bg-gradient-to-br from-white/98 to-slate-50/98 dark:from-slate-800/98 dark:to-slate-900/98 backdrop-blur-sm rounded-3xl rounded-bl-xl px-8 py-6 shadow-2xl border border-slate-200/50 dark:border-slate-700/50">
                       <div className="flex items-center gap-5">
-                        <span className="text-slate-700 dark:text-slate-300 font-bold text-xl">FinBot is thinking</span>
+                        <span className="text-slate-700 dark:text-slate-300 font-bold text-xl">
+                          FinBot is thinking
+                        </span>
                         <div className="flex gap-2">
                           {[0, 1, 2].map((i) => (
                             <div
@@ -1249,7 +1414,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   <div className="flex items-center gap-8">
                     <div className="relative">
                       <button
-                        onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                        onClick={() =>
+                          setShowLanguageDropdown(!showLanguageDropdown)
+                        }
                         className="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-slate-100/90 to-blue-100/90 dark:from-slate-800/90 dark:to-slate-900/90 backdrop-blur-sm border border-slate-200/60 dark:border-slate-700/60 rounded-2xl hover:border-blue-300/80 dark:hover:border-blue-600/80 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
                       >
                         <span className="text-2xl">{currentLanguage.flag}</span>
@@ -1257,7 +1424,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                           <div className="text-base font-bold text-slate-700 dark:text-slate-300">
                             {currentLanguage.name}
                           </div>
-                          <div className="text-sm text-slate-500 dark:text-slate-400">{currentLanguage.code}</div>
+                          <div className="text-sm text-slate-500 dark:text-slate-400">
+                            {currentLanguage.code}
+                          </div>
                         </div>
                         <ChevronDown className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                       </button>
@@ -1269,8 +1438,8 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                               <button
                                 key={lang.code}
                                 onClick={() => {
-                                  setSelectedLanguage(lang.code)
-                                  setShowLanguageDropdown(false)
+                                  setSelectedLanguage(lang.code);
+                                  setShowLanguageDropdown(false);
                                 }}
                                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left transition-all duration-300 ${
                                   selectedLanguage === lang.code
@@ -1281,7 +1450,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                                 <span className="text-xl">{lang.flag}</span>
                                 <div>
                                   <div className="font-bold">{lang.name}</div>
-                                  <div className="text-sm text-slate-500 dark:text-slate-400">{lang.code}</div>
+                                  <div className="text-sm text-slate-500 dark:text-slate-400">
+                                    {lang.code}
+                                  </div>
                                 </div>
                               </button>
                             ))}
@@ -1295,7 +1466,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         <input
                           type="checkbox"
                           checked={autoReadMessages}
-                          onChange={(e) => setAutoReadMessages(e.target.checked)}
+                          onChange={(e) =>
+                            setAutoReadMessages(e.target.checked)
+                          }
                           className="sr-only"
                         />
                         <div
@@ -1307,7 +1480,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         >
                           <div
                             className={`w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${
-                              autoReadMessages ? "translate-x-8" : "translate-x-1"
+                              autoReadMessages
+                                ? "translate-x-8"
+                                : "translate-x-1"
                             } mt-0.5`}
                           />
                         </div>
@@ -1345,7 +1520,11 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                     <input
                       ref={inputRef}
                       type="text"
-                      placeholder={isListening ? "Listening..." : `Message FinBot in ${currentLanguage.name}...`}
+                      placeholder={
+                        isListening
+                          ? "Listening..."
+                          : `Message FinBot in ${currentLanguage.name}...`
+                      }
                       className="flex-1 bg-transparent px-3 py-4 outline-none text-slate-700 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 text-base font-medium"
                       disabled={pending || !isConnected || isListening}
                       value={isListening ? transcript : undefined}
@@ -1373,7 +1552,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
                     <button
                       type="submit"
-                      disabled={pending || !isConnected || (isListening && !transcript)}
+                      disabled={
+                        pending || !isConnected || (isListening && !transcript)
+                      }
                       className="p-4 m-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-2xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl disabled:shadow-none hover:shadow-2xl hover:scale-105 active:scale-95"
                     >
                       {pending ? (
@@ -1388,7 +1569,8 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                 </form>
 
                 <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-6 font-medium">
-                  FinBot can make mistakes. Consider checking important information.
+                  FinBot can make mistakes. Consider checking important
+                  information.
                 </p>
               </div>
             </div>
@@ -1396,12 +1578,17 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 const Index = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  return <Chat sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-}
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  return (
+    <Chat
+      sidebarOpen={sidebarOpen}
+      onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+    />
+  );
+};
 
-export default Index
+export default Index;
