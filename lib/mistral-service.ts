@@ -1,9 +1,11 @@
 /**
- * @Author: Adithya
- * @Date:   2025-06-02
- * @Last Modified by:   Adithya
- * @Last Modified time: 2025-07-07
+ * @Author: 
+ * @Date:   2025-07-06
+ * @Last Modified by:   
+ * @Last Modified time: 2025-07-09
  */
+
+
 import { Mistral } from "@mistralai/mistralai"
 
 interface MistralConfig {
@@ -163,8 +165,7 @@ AVAILABLE CONTEXT AND SOURCES:`;
   if (context.vectorResults && context.vectorResults.length > 0) {
     prompt += `\nDOCUMENT SEARCH RESULTS:\n`;
     context.vectorResults.forEach((result: any, index: number) => {
-      prompt += `[V${index + 1}] ${result.content.substring(0, 300)}...\n`;
-      prompt += `    Relevance: ${(result.score * 100).toFixed(1)}%\n\n`;
+      prompt += result;
     });
   }
 

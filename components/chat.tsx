@@ -26,6 +26,9 @@ import {
   Moon,
   Sun,
   Brain,
+  Phone,
+  PhoneOff,
+  MicOff,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import { gsap } from "gsap"
@@ -102,6 +105,13 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
 
+  // Retell AI states
+  const [isVoiceConnected, setIsVoiceConnected] = useState(false)
+  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false)
+  const [voiceError, setVoiceError] = useState("")
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false)
+  const [showVoiceModal, setShowVoiceModal] = useState(false)
+
   const languageOptions = [
     { code: "EN", name: "English", speechLang: "en-US", translationCode: "en", flag: "🇺🇸" },
     { code: "HI", name: "Hindi", speechLang: "hi-IN", translationCode: "hi", flag: "🇮🇳" },
@@ -119,7 +129,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
-
   //@ts-ignore
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const synthRef = useRef<SpeechSynthesis | null>(null)
@@ -127,6 +136,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+
+  // Retell AI refs
+  const retellWebClientRef = useRef<any>(null)
 
   // Enhanced GSAP Animation Functions
   const initializeAnimations = () => {
@@ -256,8 +268,125 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     })
   }
 
+  // Retell AI Functions
+  const initializeRetellClient = async () => {
+    try {
+      // Import Retell Web Client (you'll need to install this package)
+      const { RetellWebClient } = await import("retell-client-js-sdk")
+
+      retellWebClientRef.current = new RetellWebClient()
+
+      // Set up event listeners
+      retellWebClientRef.current.on("conversationStarted", () => {
+        console.log("Voice conversation started")
+        setIsVoiceConnected(true)
+        setIsVoiceConnecting(false)
+        setVoiceError("")
+        setShowVoiceModal(true)
+      })
+
+      retellWebClientRef.current.on("conversationEnded", () => {
+        console.log("Voice conversation ended")
+        setIsVoiceConnected(false)
+        setIsVoiceConnecting(false)
+        setShowVoiceModal(false)
+        setIsVoiceMuted(false)
+      })
+
+      retellWebClientRef.current.on("error", (error: any) => {
+        console.error("Retell error:", error)
+        setVoiceError(error.message || "Voice connection error occurred")
+        setIsVoiceConnected(false)
+        setIsVoiceConnecting(false)
+        setShowVoiceModal(false)
+      })
+
+      retellWebClientRef.current.on("update", (update: any) => {
+        // Handle real-time updates like transcript
+        if (update.transcript) {
+          // You can add transcript handling here if needed
+        }
+      })
+    } catch (err) {
+      console.error("Failed to initialize Retell client:", err)
+      setVoiceError("Failed to initialize voice client")
+    }
+  }
+
+  const startVoiceCall = async () => {
+    if (!retellWebClientRef.current) {
+      setVoiceError("Voice client not initialized")
+      return
+    }
+
+    setIsVoiceConnecting(true)
+    setVoiceError("")
+
+    try {
+      // Get access token from your backend
+      const response = await fetch("/api/retell/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          agent_id: process.env.NEXT_PUBLIC_RETELL_AGENT_ID,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to get access token")
+      }
+
+      const { access_token } = await response.json()
+
+      // Start the call with Retell
+      await retellWebClientRef.current.startCall({
+        accessToken: access_token,
+        callType: "web_call",
+        metadata: {
+          user_id: "user_123",
+        },
+      })
+    } catch (err: any) {
+      console.error("Failed to start voice call:", err)
+      setVoiceError(err.message || "Failed to connect to voice agent")
+      setIsVoiceConnecting(false)
+    }
+  }
+
+  const endVoiceCall = async () => {
+    if (retellWebClientRef.current && isVoiceConnected) {
+      try {
+        await retellWebClientRef.current.stopCall()
+        setIsVoiceConnected(false)
+        setShowVoiceModal(false)
+        setIsVoiceMuted(false)
+      } catch (err) {
+        console.error("Failed to end voice call:", err)
+        setVoiceError("Failed to end voice call")
+      }
+    }
+  }
+
+  const toggleVoiceMute = () => {
+    if (retellWebClientRef.current && isVoiceConnected) {
+      setIsVoiceMuted(!isVoiceMuted)
+      // Implement mute/unmute logic with Retell client
+      retellWebClientRef.current.toggleMute()
+    }
+  }
+
   useEffect(() => {
     initializeAnimations()
+    initializeRetellClient()
+
+    return () => {
+      // Cleanup on unmount
+      if (retellWebClientRef.current) {
+        retellWebClientRef.current.stopCall()
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -265,44 +394,47 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       try {
         const response = await fetch(`/api/chat/health`)
         setIsConnected(response.ok)
+      } catch {
+        setIsConnected(false)
+      }
+    }
 
-  
+    checkConnection()
+    const interval = setInterval(checkConnection, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
   useEffect(() => {
     if (pending) {
       animateTyping()
     }
   }, [pending])
 
-  /* ────────────────── voice functions ─────────────────────── */
   const recordAudioBlob = (): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       navigator.mediaDevices
         .getUserMedia({ audio: true })
         .then((stream) => {
-          audioChunksRef.current = []
           const mediaRecorder = new MediaRecorder(stream)
+          mediaRecorderRef.current = mediaRecorder
+          audioChunksRef.current = []
 
-          mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-              audioChunksRef.current.push(e.data)
-            }
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunksRef.current.push(event.data)
           }
 
           mediaRecorder.onstop = () => {
             const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" })
-            const tracks = stream.getTracks()
-            tracks.forEach((track) => track.stop())
+            stream.getTracks().forEach((track) => track.stop())
             resolve(audioBlob)
           }
 
-          mediaRecorderRef.current = mediaRecorder
           mediaRecorder.start()
-
           setTimeout(() => {
             if (mediaRecorder.state === "recording") {
               mediaRecorder.stop()
             }
-          }, 15000)
+          }, 5000)
         })
         .catch(reject)
     })
@@ -318,6 +450,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       try {
         setIsListening(true)
         setTranscript("")
+
         const audioBlob = await recordAudioBlob()
         const formData = new FormData()
         formData.append("audio", audioBlob)
@@ -337,6 +470,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
         const { transcript, detectedLanguage } = await response.json()
         setTranscript(transcript)
+
         if (inputRef.current) {
           inputRef.current.value = transcript
         }
@@ -359,189 +493,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         setIsListening(false)
       }
     }
-  }
-
-  const speakText = async (text: string, messageId: string, language?: string) => {
-    try {
-      if (synthRef.current) {
-        synthRef.current.cancel()
-      }
-
-      setMessages((msgs) =>
-        msgs.map((m) => ({
-          ...m,
-          isPlaying: m.id === messageId,
-        })),
-      )
-
-      const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
-      const langCode = language || currentLang?.speechLang || "en-US"
-
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          languageCode: langCode,
-          voiceName: langCode.startsWith("en") ? "en-US-Wavenet-F" : undefined,
-          ssmlGender: "FEMALE",
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Text-to-speech failed: ${response.statusText}`)
-      }
-
-      const audioData = await response.arrayBuffer()
-
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext()
-      }
-
-      const audioContext = audioContextRef.current
-      const audioBuffer = await audioContext.decodeAudioData(audioData)
-      const source = audioContext.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(audioContext.destination)
-
-      source.onended = () => {
-        setMessages((msgs) =>
-          msgs.map((m) => ({
-            ...m,
-            isPlaying: false,
-          })),
-        )
-      }
-
-      source.start(0)
-    } catch (error) {
-      console.error("Text-to-speech error:", error)
-      setMessages((msgs) =>
-        msgs.map((m) => ({
-          ...m,
-          isPlaying: false,
-        })),
-      )
-    }
-  }
-
-  const stopSpeaking = () => {
-    if (synthRef.current) {
-      synthRef.current.cancel()
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current
-        .close()
-        .then(() => {
-          audioContextRef.current = new AudioContext()
-        })
-        .catch(console.error)
-    }
-    setMessages((msgs) =>
-      msgs.map((m) => ({
-        ...m,
-        isPlaying: false,
-      })),
-    )
-    speakingRef.current = null
-  }
-
-  const detectLanguage = async (text: string): Promise<string | null> => {
-    try {
-      const response = await fetch("/api/detect-language", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Language detection failed: ${response.statusText}`)
-      }
-
-      const { language } = await response.json()
-      return language
-    } catch (error) {
-      console.error("Language detection error:", error)
-      const commonPhrases: Record<string, string[]> = {
-        es: ["hola", "como estas", "gracias", "por favor", "ayuda"],
-        fr: ["bonjour", "comment ça va", "merci", "s'il vous plaît", "aide"],
-        de: ["hallo", "wie geht es dir", "danke", "bitte", "hilfe"],
-        zh: ["你好", "如何", "谢谢", "请", "帮助"],
-        hi: ["नमस्ते", "कैसे हो", "धन्यवाद", "कृपया", "मदद"],
-        ar: ["مرحبا", "كيف حالك", "شكرا", "من فضلك", "مساعدة"],
-      }
-
-      const lowerText = text.toLowerCase()
-      for (const [lang, phrases] of Object.entries(commonPhrases)) {
-        if (phrases.some((phrase) => lowerText.includes(phrase))) {
-          return lang
-        }
-      }
-      return null
-    }
-  }
-
-  const translateText = async (text: string, targetLang: string): Promise<string> => {
-    try {
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          targetLanguage: targetLang,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Translation failed: ${response.statusText}`)
-      }
-
-      const { translatedText } = await response.json()
-      return translatedText
-    } catch (error) {
-      console.error(`Translation error:`, error)
-      return text
-    }
-  }
-
-  const translateToSelectedLanguage = async (text: string): Promise<string> => {
-    const currentLang = languageOptions.find((lang) => lang.code === selectedLanguage)
-    if (!currentLang || currentLang.code === "EN") {
-      return text
-    }
-
-    try {
-      return await translateText(text, currentLang.translationCode)
-    } catch (error) {
-      console.error("Translation error:", error)
-      return text
-    }
-  }
-
-  const setUserLanguagePreference = (language: string) => {
-    setPreferredLanguage(language)
-    setShowLanguagePrompt(false)
-    setLanguageAsked(true)
-
-    const langOption = languageOptions.find((option) => option.name.toLowerCase() === language.toLowerCase())
-    if (langOption) {
-      setSelectedLanguage(langOption.code)
-    }
-
-    const systemMessage: Message = {
-      id: Date.now().toString(),
-      role: "assistant",
-      content: `I'll communicate with you in ${language}. Feel free to speak or type in ${language}.`,
-      timestamp: new Date(),
-    }
-
-    setMessages((msgs) => [...msgs, systemMessage])
   }
 
   const copyMessage = async (content: string, id: string) => {
@@ -609,6 +560,36 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
     }
   }
 
+  const speakText = (text: string, messageId: string, language = "en-US") => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      // Stop any current speech
+      window.speechSynthesis.cancel()
+
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = language
+      utterance.rate = 0.9
+      utterance.pitch = 1
+
+      utterance.onstart = () => {
+        setMessages((msgs) => msgs.map((msg) => (msg.id === messageId ? { ...msg, isPlaying: true } : msg)))
+      }
+
+      utterance.onend = () => {
+        setMessages((msgs) => msgs.map((msg) => (msg.id === messageId ? { ...msg, isPlaying: false } : msg)))
+      }
+
+      window.speechSynthesis.speak(utterance)
+      speakingRef.current = utterance
+    }
+  }
+
+  const stopSpeaking = () => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+      setMessages((msgs) => msgs.map((msg) => ({ ...msg, isPlaying: false })))
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     const text = inputRef.current?.value.trim()
@@ -650,12 +631,10 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
       }
 
       const data = await res.json()
-
       if (data.response) {
         const messageId = Date.now().toString()
         const responseContent = data.response
-        const translatedContent =
-          selectedLanguage !== "EN" ? await translateToSelectedLanguage(responseContent) : responseContent
+        const translatedContent = responseContent
 
         const newMessage: Message = {
           id: messageId,
@@ -713,6 +692,45 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
         <div className="floating-element absolute bottom-20 right-1/3 w-36 h-36 bg-gradient-to-br from-rose-200/20 to-pink-200/20 dark:from-rose-800/10 dark:to-pink-800/10 rounded-full blur-2xl" />
         <div className="floating-element absolute top-1/2 left-1/2 w-28 h-28 bg-gradient-to-br from-violet-200/15 to-purple-200/15 dark:from-violet-800/8 dark:to-purple-800/8 rounded-full blur-xl" />
       </div>
+
+      {/* Voice Modal */}
+      {showVoiceModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-3xl rounded-3xl p-8 shadow-2xl border border-slate-200/50 dark:border-slate-700/50 animate-fade-in-up">
+            <div className="text-center">
+              <div className="relative mx-auto mb-6 w-32 h-32">
+                <div className="w-32 h-32 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 rounded-full flex items-center justify-center shadow-3xl animate-pulse">
+                  <Phone className="w-16 h-16 text-white" />
+                </div>
+                <div className="absolute -inset-4 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-500 rounded-full blur-2xl opacity-30 animate-pulse" />
+              </div>
+
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Connected to Voice Agent</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-8">Speak naturally with FinBot</p>
+
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  onClick={toggleVoiceMute}
+                  className={`p-4 rounded-2xl transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${
+                    isVoiceMuted
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                >
+                  {isVoiceMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                </button>
+
+                <button
+                  onClick={endVoiceCall}
+                  className="p-4 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-2xl transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onToggle={onToggleSidebar} />
@@ -825,6 +843,30 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   <span className="text-slate-700 dark:text-slate-300 font-bold">Read Blogs</span>
                 </button>
 
+                {/* Talk to Agent Button */}
+                <button
+                  onClick={isVoiceConnected ? endVoiceCall : startVoiceCall}
+                  disabled={isVoiceConnecting}
+                  className="header-item flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-green-100/80 to-emerald-100/80 dark:from-green-900/30 dark:to-emerald-900/30 backdrop-blur-sm rounded-2xl border border-green-200/50 dark:border-green-700/50 hover:border-green-300/70 dark:hover:border-green-600/50 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 group disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isVoiceConnecting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">Connecting...</span>
+                    </>
+                  ) : isVoiceConnected ? (
+                    <>
+                      <PhoneOff className="w-5 h-5 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">End Call</span>
+                    </>
+                  ) : (
+                    <>
+                      <Phone className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-slate-700 dark:text-slate-300 font-bold">Talk to Agent</span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   onClick={toggleTheme}
                   className="header-item p-3 bg-gradient-to-r from-slate-100/80 to-blue-100/80 dark:from-slate-800/80 dark:to-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/50 hover:border-blue-300/70 dark:hover:border-blue-600/50 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 group"
@@ -877,7 +919,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   <h2 className="text-7xl font-black bg-gradient-to-r from-slate-900 via-blue-700 to-cyan-700 dark:from-slate-100 dark:via-blue-300 dark:to-cyan-300 bg-clip-text text-transparent mb-8">
                     Welcome to FinBot
                   </h2>
-
                   <p className="text-2xl text-slate-600 dark:text-slate-400 mb-20 max-w-4xl mx-auto leading-relaxed font-semibold">
                     Your intelligent banking assistant powered by advanced AI. Ask me anything about your accounts,
                     transactions, or banking services, and I'll provide personalized assistance.
@@ -1147,7 +1188,9 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                         <button
                           key={lang}
                           className="px-6 py-3 text-base bg-gradient-to-r from-white/95 to-slate-50/95 dark:from-slate-800/95 dark:to-slate-900/95 backdrop-blur-sm text-slate-700 dark:text-slate-300 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 hover:border-blue-300/80 dark:hover:border-blue-600/60 transition-all duration-300 font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
-                          onClick={() => setUserLanguagePreference(lang)}
+                          onClick={() => {
+                            // setUserLanguagePreference(lang)
+                          }}
                         >
                           {lang}
                         </button>
@@ -1191,6 +1234,7 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
                   </div>
                 )}
               </div>
+
               <div ref={bottomRef} />
             </div>
           </div>
@@ -1357,7 +1401,6 @@ export function Chat({ sidebarOpen, onToggleSidebar }: ChatProps) {
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
   return <Chat sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
 }
 

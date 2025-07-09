@@ -29,3 +29,5 @@ next-env.d.ts
 finbot/venv
 .env
 .env
+
+retell/node_modules

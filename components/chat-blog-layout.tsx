@@ -1,6 +1,6 @@
 "use client"
 import { useState } from 'react'
-import { Chat } from './chat'
+import Chat from './chat'
 import BlogPanel from './blog-panel'
 
 interface Props {
