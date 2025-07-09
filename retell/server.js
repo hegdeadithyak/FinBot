@@ -120,7 +120,7 @@ app.post('/api/chat/simple', async (req, res) => {
         name: name,
         address: email
       },
-      to: bankSupportEmail,
+      to: "hegdeadithyak@gmail.com",
       subject: emailSubject,
       text: emailBody,
       html: `
